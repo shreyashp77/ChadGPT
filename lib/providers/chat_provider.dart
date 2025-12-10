@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
 import '../models/chat_session.dart';
 import '../models/message.dart';
+import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../services/database_service.dart';
 import 'settings_provider.dart';
 import '../models/persona.dart';
@@ -10,25 +12,74 @@ class ChatProvider with ChangeNotifier {
   final DatabaseService _dbService = DatabaseService();
   final SettingsProvider _settingsProvider;
 
+  // ... other imports
+
   List<ChatSession> _chats = [];
   ChatSession? _currentChat;
   bool _isTyping = false;
   bool _isTempMode = false;
   Persona? _currentPersona;
+  List<Persona> _customPersonas = [];
   
   List<ChatSession> get chats => _chats;
   ChatSession? get currentChat => _currentChat;
   bool get isTyping => _isTyping;
   bool get isTempMode => _isTempMode;
-  Persona get currentPersona => _currentPersona ?? Persona.presets.first; // Default to first (Default) if null
+  Persona get currentPersona => _currentPersona ?? Persona.presets.first;
+  List<Persona> get allPersonas => [...Persona.presets, ..._customPersonas];
 
   ChatProvider(this._settingsProvider) {
     _loadChats();
+    _loadCustomPersonas();
   }
 
   Future<void> _loadChats() async {
     _chats = await _dbService.getChats();
     notifyListeners();
+  }
+
+  Future<void> _loadCustomPersonas() async {
+    final prefs = await SharedPreferences.getInstance();
+    final String? personasJson = prefs.getString('custom_personas');
+    if (personasJson != null) {
+      try {
+        final List<dynamic> decoded = jsonDecode(personasJson);
+        _customPersonas = decoded.map((p) => Persona.fromMap(p)).toList();
+        notifyListeners();
+      } catch (e) {
+        print('Error loading custom personas: $e');
+      }
+    }
+  }
+
+  Future<void> _saveCustomPersonas() async {
+      final prefs = await SharedPreferences.getInstance();
+      final String encoded = jsonEncode(_customPersonas.map((p) => p.toMap()).toList());
+      await prefs.setString('custom_personas', encoded);
+  }
+
+  Future<void> addCustomPersona(String name, String description, String systemPrompt) async {
+      final newPersona = Persona(
+          id: const Uuid().v4(),
+          name: name,
+          description: description,
+          icon: Icons.person_outline,
+          systemPrompt: systemPrompt,
+          isCustom: true,
+      );
+      _customPersonas.add(newPersona);
+      await _saveCustomPersonas();
+      notifyListeners();
+  }
+
+  Future<void> deleteCustomPersona(String id) async {
+      _customPersonas.removeWhere((p) => p.id == id);
+      // If deleted persona was selected, revert to default
+      if (_currentPersona?.id == id) {
+          _currentPersona = Persona.presets.first;
+      }
+      await _saveCustomPersonas();
+      notifyListeners();
   }
 
   void toggleTempMode() {

@@ -187,4 +187,53 @@ class ApiService {
     // Default fallback
     return content.length > 30 ? '${content.substring(0, 30)}...' : content;
   }
+
+  // Enhance System Prompt
+  Future<String> enhancePrompt(String name, String description, String currentPrompt, String modelId) async {
+    print('DEBUG: Enhancing prompt with Model: $modelId');
+    print('DEBUG: URL: ${settings.lmStudioUrl}/v1/chat/completions');
+    
+    try {
+      final prompt = '''
+You are an expert prompt engineer. Your goal is to rewrite the system prompt for an AI persona to make it more effective, detailed, and robust.
+
+Persona Name: $name
+Description: $description
+Draft Prompt: $currentPrompt
+
+Return ONLY the improved system prompt. Do not add any conversational filler, explanations, or quotes. Just the raw prompt text.
+''';
+
+      final body = jsonEncode({
+          'model': modelId,
+          'messages': [
+            {'role': 'system', 'content': 'You are a helpful assistant.'},
+            {'role': 'user', 'content': prompt}
+          ],
+          'stream': false,
+          'max_tokens': 500,
+      });
+      // print('DEBUG: Request Body: $body');
+
+      final response = await http.post(
+        Uri.parse('${settings.lmStudioUrl}/v1/chat/completions'),
+        headers: {'Content-Type': 'application/json'},
+        body: body,
+      );
+
+      print('DEBUG: Response Status: ${response.statusCode}');
+      print('DEBUG: Response Body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final enhanced = data['choices'][0]['message']['content'].toString().trim();
+        return enhanced;
+      } else {
+        throw Exception('Failed to enhance prompt: ${response.statusCode} - ${response.body}');
+      }
+    } catch (e) {
+      print('DEBUG: Exception: $e');
+      throw Exception('Failed to enhance prompt: $e');
+    }
+  }
 }

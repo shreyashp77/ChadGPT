@@ -6,6 +6,7 @@ class Persona {
   final String description;
   final IconData icon;
   final String systemPrompt;
+  final bool isCustom;
 
   const Persona({
     required this.id,
@@ -13,7 +14,31 @@ class Persona {
     required this.description,
     required this.icon,
     required this.systemPrompt,
+    this.isCustom = false,
   });
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'name': name,
+      'description': description,
+      'systemPrompt': systemPrompt,
+      'isCustom': isCustom,
+      // Icon is hard to serialize, so for custom personas we might default to a specific icon
+      // or store an icon code. For simplicity, we'll re-assign a default icon on load.
+    };
+  }
+
+  factory Persona.fromMap(Map<String, dynamic> map) {
+    return Persona(
+      id: map['id'],
+      name: map['name'],
+      description: map['description'],
+      icon: Icons.person_outline, // Default for custom
+      systemPrompt: map['systemPrompt'],
+      isCustom: map['isCustom'] ?? true,
+    );
+  }
 
   static const List<Persona> presets = [
     Persona(
@@ -26,7 +51,7 @@ class Persona {
     Persona(
       id: 'coder',
       name: 'Senior Dev',
-      description: 'Expert in Flutter, Dart, and clean code',
+      description: 'Expert in Python, Java, and clean code',
       icon: Icons.code,
       systemPrompt: 'You are a Senior Software Engineer. You write clean, efficient, and well-documented code. You prefer modern best practices and explain your reasoning. When asked for code, you provide complete, runnable examples.',
     ),

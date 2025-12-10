@@ -7,10 +7,10 @@ import 'package:flutter_animate/flutter_animate.dart';
 import '../providers/chat_provider.dart';
 import '../providers/settings_provider.dart';
 import '../models/message.dart';
-import '../models/persona.dart';
 import '../utils/theme.dart';
 import '../widgets/message_bubble.dart';
 import '../widgets/app_drawer.dart';
+import '../widgets/create_persona_dialog.dart';
 
 class ChatScreen extends StatefulWidget {
   const ChatScreen({super.key});
@@ -572,9 +572,22 @@ class _ChatScreenState extends State<ChatScreen> {
               child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                      const Padding(
-                        padding: EdgeInsets.all(16.0),
-                        child: Text('Choose Personality', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                      Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text('Choose Personality', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                            TextButton.icon(
+                                onPressed: () {
+                                    Navigator.pop(ctx);
+                                    _showCreatePersonaDialog(context);
+                                },
+                                icon: const Icon(Icons.add, color: AppTheme.accent),
+                                label: const Text('New', style: TextStyle(color: AppTheme.accent)),
+                            )
+                          ],
+                        ),
                       ),
                       const Divider(color: Colors.white10, height: 1),
                       Flexible(
@@ -582,9 +595,9 @@ class _ChatScreenState extends State<ChatScreen> {
                               builder: (context, chat, _) => ListView.builder(
                               shrinkWrap: true,
                               padding: const EdgeInsets.symmetric(vertical: 8),
-                              itemCount: Persona.presets.length,
+                              itemCount: chat.allPersonas.length,
                               itemBuilder: (context, index) {
-                                  final persona = Persona.presets[index];
+                                  final persona = chat.allPersonas[index];
                                   final isSelected = chat.currentPersona.id == persona.id;
                                   
                                   return ListTile(
@@ -598,7 +611,19 @@ class _ChatScreenState extends State<ChatScreen> {
                                       ),
                                       title: Text(persona.name, style: TextStyle(color: isSelected ? AppTheme.accent : Colors.white, fontWeight: FontWeight.bold)),
                                       subtitle: Text(persona.description, style: const TextStyle(color: Colors.white54, fontSize: 12)),
-                                      trailing: isSelected ? const Icon(Icons.check_circle, color: AppTheme.accent) : null,
+                                      trailing: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                              if (persona.isCustom)
+                                                  IconButton(
+                                                      icon: const Icon(Icons.delete_outline, color: Colors.white30, size: 20),
+                                                      onPressed: () {
+                                                          chat.deleteCustomPersona(persona.id);
+                                                      },
+                                                  ),
+                                              if (isSelected) const Icon(Icons.check_circle, color: AppTheme.accent),
+                                          ],
+                                      ),
                                       onTap: () {
                                           chat.setPersona(persona);
                                           Navigator.pop(ctx);
@@ -611,6 +636,17 @@ class _ChatScreenState extends State<ChatScreen> {
                       const SizedBox(height: 8),
                   ],
               ),
+          ),
+      );
+  }
+
+  void _showCreatePersonaDialog(BuildContext context) {
+      showDialog(
+          context: context,
+          builder: (ctx) => CreatePersonaDialog(
+              onCreate: (name, desc, prompt) {
+                  Provider.of<ChatProvider>(context, listen: false).addCustomPersona(name, desc, prompt);
+              },
           ),
       );
   }
