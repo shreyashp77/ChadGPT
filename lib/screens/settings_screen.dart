@@ -245,7 +245,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                         shape: BoxShape.circle,
                                         border: isSelected ? Border.all(color: isDark ? Colors.white : Colors.black87, width: 3) : null,
                                         boxShadow: [
-                                            if (isSelected) BoxShadow(color: color.withValues(alpha: 0.6), blurRadius: 12, spreadRadius: 2)
+                                            if (isSelected) BoxShadow(color: color.withValues(alpha: 0.4), blurRadius: 4, spreadRadius: 1)
                                         ]
                                     ),
                                     child: isSelected ? const Icon(Icons.check, color: Colors.white, size: 22) : null,
