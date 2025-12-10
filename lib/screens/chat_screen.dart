@@ -23,6 +23,7 @@ class _ChatScreenState extends State<ChatScreen> {
   final ScrollController _scrollController = ScrollController();
   String? _pendingAttachmentPath;
   String? _pendingAttachmentType; // 'image' or 'file'
+  bool _showScrollDownButton = false; // State to toggle visibility of scroll button
 
   bool _useWebSearch = false; // Local state for search
 
@@ -38,9 +39,20 @@ class _ChatScreenState extends State<ChatScreen> {
     });
   }
 
+  void _scrollListener() {
+    if (_scrollController.hasClients) {
+      final isAtBottom = _scrollController.position.pixels >= 
+          _scrollController.position.maxScrollExtent - 100; // Threshold of 100
+      setState(() {
+        _showScrollDownButton = !isAtBottom;
+      });
+    }
+  }
+
   @override
   void initState() {
     super.initState();
+    _scrollController.addListener(_scrollListener);
     // Start a new chat immediately if none exists
     WidgetsBinding.instance.addPostFrameCallback((_) {
         final chatProvider = context.read<ChatProvider>();
@@ -53,6 +65,14 @@ class _ChatScreenState extends State<ChatScreen> {
             chatProvider.startNewChat();
         }
     });
+  }
+
+  @override
+  void dispose() {
+    _scrollController.removeListener(_scrollListener);
+    _scrollController.dispose();
+    _textController.dispose();
+    super.dispose();
   }
 
   @override
@@ -135,9 +155,22 @@ class _ChatScreenState extends State<ChatScreen> {
             right: false,
             child: Align(
               alignment: Alignment.bottomCenter,
-              child: Container(
-                margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                child: ClipRRect(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                   if (_showScrollDownButton)
+                     Container(
+                       margin: const EdgeInsets.only(bottom: 8, right: 16),
+                       child: FloatingActionButton.small(
+                         onPressed: _scrollToBottom,
+                         backgroundColor: Theme.of(context).colorScheme.surface,
+                         child: Icon(Icons.arrow_downward, color: Theme.of(context).colorScheme.onSurface),
+                       ),
+                     ),
+                  Container(
+                    margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                    child: ClipRRect(
                   borderRadius: BorderRadius.circular(30),
                 child: BackdropFilter(
                   filter: ui.ImageFilter.blur(sigmaX: 10, sigmaY: 10),
@@ -313,8 +346,10 @@ class _ChatScreenState extends State<ChatScreen> {
                   ),
                 ),
               ),
+                  ),
+                ],
+              ),
             ).animate().slideY(begin: 1.0, end: 0, curve: Curves.easeOutQuad, duration: 600.ms),
-          ),
           ),
         ],
       ),
