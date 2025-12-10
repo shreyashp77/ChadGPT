@@ -44,12 +44,21 @@ class ChatProvider with ChangeNotifier {
   bool _isContinuousVoiceMode = false;
   bool get isContinuousVoiceMode => _isContinuousVoiceMode;
 
+  String? _currentVoiceSubtitle;
+  String? get currentVoiceSubtitle => _currentVoiceSubtitle;
+
   ChatProvider(this._settingsProvider) {
     _loadChats();
     _loadCustomPersonas();
     
     // Listen to TTS state changes
     _ttsService.onStateChanged = (isPlaying) {
+        notifyListeners();
+    };
+
+    // Listen to TTS subtitle changes
+    _ttsService.onCurrentSentenceChanged = (text) {
+        _currentVoiceSubtitle = text;
         notifyListeners();
     };
 

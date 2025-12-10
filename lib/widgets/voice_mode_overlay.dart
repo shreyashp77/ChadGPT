@@ -128,21 +128,24 @@ class _VoiceModeOverlayState extends State<VoiceModeOverlay> with SingleTickerPr
                         ),
                     ),
                     
-                    // Transcript / Subtitles (Optional - maybe show last user text?)
-                    if (isThinking || isSpeaking)
+                    // Transcript / Subtitles
+                    if (chatProvider.currentVoiceSubtitle != null)
                         Positioned(
                             bottom: 50,
                             left: 20,
                             right: 20,
                             child: Text(
-                                chatProvider.currentChat?.messages.isNotEmpty == true 
-                                   ? chatProvider.currentChat!.messages.last.content 
-                                   : "",
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
+                                chatProvider.currentVoiceSubtitle!,
                                 textAlign: TextAlign.center,
-                                style: const TextStyle(color: Colors.white54, fontSize: 16),
-                            ).animate().fadeIn(),
+                                style: const TextStyle(
+                                    color: Colors.white, 
+                                    fontSize: 18, 
+                                    fontWeight: FontWeight.w500,
+                                    shadows: [
+                                        Shadow(blurRadius: 10, color: Colors.black, offset: Offset(0, 2))
+                                    ]
+                                ),
+                            ).animate(key: ValueKey(chatProvider.currentVoiceSubtitle)).fadeIn(duration: 200.ms),
                         ),
                 ],
             ),

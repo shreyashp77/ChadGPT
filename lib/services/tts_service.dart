@@ -12,6 +12,7 @@ class TtsService {
 
   // Callback for state changes
   Function(bool isPlaying)? onStateChanged;
+  Function(String? sentence)? onCurrentSentenceChanged; // New callback
   VoidCallback? onCompletion;
 
   TtsService() {
@@ -39,12 +40,14 @@ class TtsService {
     _flutterTts.setCancelHandler(() {
       // If external cancel happens
       onStateChanged?.call(false);
+      onCurrentSentenceChanged?.call(null);
     });
     
     _flutterTts.setErrorHandler((msg) {
        _isPlaying = false;
        _speechQueue.clear();
        onStateChanged?.call(false);
+       onCurrentSentenceChanged?.call(null);
        print("TTS Error: $msg");
     });
   }
@@ -54,7 +57,9 @@ class TtsService {
     if (text.isNotEmpty) {
       _isPlaying = true;
       onStateChanged?.call(true);
+      onCurrentSentenceChanged?.call(text); // Notify start
       await _flutterTts.speak(text);
+      onCurrentSentenceChanged?.call(null); // Notify end
       _isPlaying = false;
       onStateChanged?.call(false);
       onCompletion?.call();
@@ -82,10 +87,13 @@ class TtsService {
               // Double check to ensure we weren't stopped
               if (!_isPlaying) { 
                   _speechQueue.clear();
+                  onCurrentSentenceChanged?.call(null);
                   return;
               }
               
               final nextText = _speechQueue.removeAt(0);
+              
+              onCurrentSentenceChanged?.call(nextText); // Notify start of sentence
               // This will now wait until speech is finished because of awaitSpeakCompletion(true)
               await _flutterTts.speak(nextText);
           }
@@ -95,10 +103,8 @@ class TtsService {
       } finally {
           _isPlaying = false;
           onStateChanged?.call(false);
+          onCurrentSentenceChanged?.call(null); // Clear subtitle
           // Only fire completion if we drained the queue naturally (not stopped)
-          // `speak` future throws/cancels on stop? Usually returns.
-          // We can check if we should fire completion.
-          // If queue is empty, we are done.
           if (_speechQueue.isEmpty) {
                onCompletion?.call();
           }
@@ -108,6 +114,7 @@ class TtsService {
   Future<void> stop() async {
     _isPlaying = false; // Flag to stop processing loop
     _speechQueue.clear();
+    onCurrentSentenceChanged?.call(null);
     await _flutterTts.stop();
     onStateChanged?.call(false);
   }
