@@ -93,6 +93,16 @@ class DatabaseService {
     );
   }
 
+  Future<void> renameChat(String id, String newTitle) async {
+    final db = await database;
+    await db.update(
+        AppConstants.tableNameChats,
+        {'title': newTitle},
+        where: 'id = ?',
+        whereArgs: [id],
+    );
+  }
+
   // Message Operations
   Future<List<Message>> getMessages(String chatId) async {
     final db = await database;

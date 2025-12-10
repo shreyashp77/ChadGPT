@@ -2,14 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
+import 'dart:ui' as ui;
+import 'package:flutter_animate/flutter_animate.dart';
 import '../providers/chat_provider.dart';
 import '../providers/settings_provider.dart';
 import '../models/message.dart';
-import 'dart:ui' as ui;
-import 'package:flutter_animate/flutter_animate.dart';
 import '../utils/theme.dart';
 import '../widgets/message_bubble.dart';
-import 'home_screen.dart';
+import '../widgets/app_drawer.dart';
 
 class ChatScreen extends StatefulWidget {
   const ChatScreen({super.key});
@@ -44,6 +44,11 @@ class _ChatScreenState extends State<ChatScreen> {
     // Start a new chat immediately if none exists
     WidgetsBinding.instance.addPostFrameCallback((_) {
         final chatProvider = context.read<ChatProvider>();
+        // Sync local web search state
+        setState(() {
+            _useWebSearch = context.read<SettingsProvider>().settings.useWebSearch;
+        });
+
         if (chatProvider.currentChat == null) {
             chatProvider.startNewChat();
         }
@@ -58,48 +63,28 @@ class _ChatScreenState extends State<ChatScreen> {
 
     return Scaffold(
       extendBodyBehindAppBar: true,
+      drawer: const AppDrawer(),
       appBar: AppBar(
+        centerTitle: true,
+        title: Text(currentChat?.title ?? 'Grok'),
+        actions: [
+            Consumer<ChatProvider>(
+                builder: (context, chat, _) => IconButton(
+                    icon: Icon(chat.isTempMode ? Icons.visibility_off : Icons.history, 
+                        color: chat.isTempMode ? Colors.white : Colors.white70),
+                    tooltip: chat.isTempMode ? 'Turn off Incognito' : 'Turn on Incognito',
+                    onPressed: () {
+                        chat.toggleTempMode();
+                    },
+                ),
+            ),
+        ],
         flexibleSpace: ClipRRect(
              child: BackdropFilter(
                  filter: ui.ImageFilter.blur(sigmaX: 10, sigmaY: 10),
                  child: Container(color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.5)),
              )
         ),
-        leading: IconButton(
-            icon: const Icon(Icons.history_rounded),
-            tooltip: 'Chat History',
-            onPressed: () {
-                Navigator.of(context).push(MaterialPageRoute(builder: (_) => const HomeScreen()));
-            },
-        ),
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(currentChat?.title ?? 'New Chat'),
-            if (chatProvider.isTempMode)
-               Text('Temporary Chat', style: TextStyle(fontSize: 12, color: Colors.orangeAccent)),
-          ],
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.settings),
-            onPressed: () {
-               Navigator.of(context).pushNamed('/settings');
-            },
-          ),
-          IconButton(
-            icon: Icon(chatProvider.isTempMode ? Icons.history : Icons.history_toggle_off),
-            tooltip: 'Toggle Temp Mode',
-            onPressed: () {
-                chatProvider.toggleTempMode();
-                if (chatProvider.isTempMode) {
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Temporary Mode Enabled. Chats will not be saved.')));
-                } else {
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Saved Mode Enabled.')));
-                }
-            },
-          ),
-        ],
       ),
       body: Stack(
         children: [
@@ -110,9 +95,21 @@ class _ChatScreenState extends State<ChatScreen> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                         Icon(Icons.chat_bubble_outline, size: 64, color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.5)),
+                         Icon(
+                             chatProvider.isTempMode ? Icons.visibility_off : Icons.chat_bubble_outline, 
+                             size: 64, 
+                             color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.5)
+                         ),
                          const SizedBox(height: 16),
-                         const Text('Start talking!', style: TextStyle(fontSize: 18, color: Colors.grey)),
+                         Text(
+                             chatProvider.isTempMode ? 'Incognito Mode' : 'Start talking!', 
+                             style: const TextStyle(fontSize: 18, color: Colors.grey, fontWeight: FontWeight.bold)
+                         ),
+                         if (chatProvider.isTempMode)
+                             const Padding(
+                                 padding: EdgeInsets.only(top: 8.0),
+                                 child: Text('History is paused', style: TextStyle(fontSize: 14, color: Colors.grey)),
+                             ),
                       ],
                     )
                   )
@@ -120,7 +117,7 @@ class _ChatScreenState extends State<ChatScreen> {
                     controller: _scrollController,
                     padding: EdgeInsets.only(
                         top: MediaQuery.of(context).padding.top + kToolbarHeight + 16,
-                        bottom: 120 // Space for input area
+                        bottom: 160 // Increased space for input area
                     ),
                     itemCount: currentChat.messages.length + (chatProvider.isTyping && currentChat.messages.last.role != MessageRole.assistant ? 1 : 0),
                     itemBuilder: (context, index) {
@@ -235,7 +232,7 @@ class _ChatScreenState extends State<ChatScreen> {
                                              mainAxisSize: MainAxisSize.min,
                                              children: [
                                                 if (_useWebSearch) ...[
-                                                    const Icon(Icons.public, size: 14, color: AppTheme.accent),
+                                                    Icon(Icons.public, size: 14, color: Theme.of(context).colorScheme.primary),
                                                     const SizedBox(width: 6),
                                                 ] else ...[
                                                     Icon(Icons.auto_awesome, size: 14, color: Theme.of(context).colorScheme.primary),

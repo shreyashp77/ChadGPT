@@ -72,6 +72,23 @@ class ChatProvider with ChangeNotifier {
     }
   }
 
+  Future<void> renameChat(String chatId, String newTitle) async {
+    await _dbService.renameChat(chatId, newTitle);
+    
+    // Update local list
+    final chatIndex = _chats.indexWhere((c) => c.id == chatId);
+    if (chatIndex != -1) {
+        _chats[chatIndex].title = newTitle;
+    }
+    
+    // Update current chat if it's the one being renamed
+    if (_currentChat?.id == chatId) {
+        _currentChat!.title = newTitle;
+    }
+    
+    notifyListeners();
+  }
+
   Future<void> sendMessage(String content, {String? attachmentPath, String? attachmentType, bool useWebSearch = false}) async {
     if (_currentChat == null) startNewChat();
     
