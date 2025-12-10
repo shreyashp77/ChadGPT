@@ -116,7 +116,8 @@ class ChatProvider with ChangeNotifier {
   void stopContinuousVoiceMode() {
       _isContinuousVoiceMode = false;
       stopListening();
-      stopSpeaking();
+      // stopSpeaking calls ttsService.stop() which clears the queue
+      stopSpeaking(); 
       notifyListeners();
   }
 
@@ -378,12 +379,40 @@ class ChatProvider with ChangeNotifier {
 
       String fullResponse = "";
       
+      // Streaming TTS Buffer
+      String sentenceBuffer = "";
+      // Match punctuation followed by whitespace, OR newlines. 
+      // Removed anchors ($) to find matches within the text.
+      final sentenceTerminator = RegExp(r'(?:[.?!]\s+|\n+)'); 
+
       int lastHapticTime = 0; // Timestamp for throttling
 
       await for (final chunk in stream) {
         if (_abortGeneration) break;
         
         fullResponse += chunk;
+        
+        // Voice Mode: Streaming TTS
+        if (_isContinuousVoiceMode) {
+             sentenceBuffer += chunk;
+             
+             // continuously check for matches
+             while (true) {
+                 final match = sentenceTerminator.firstMatch(sentenceBuffer);
+                 if (match == null) break;
+                 
+                 // Extract sentence including the terminator (up to match.end)
+                 final sentence = sentenceBuffer.substring(0, match.end);
+                 
+                 // Speak it
+                 if (sentence.trim().isNotEmpty) {
+                     _ttsService.speakQueued(sentence.trim());
+                 }
+                 
+                 // Remove from buffer
+                 sentenceBuffer = sentenceBuffer.substring(match.end);
+             }
+        }
         
          // Update the message in the list
         _currentChat!.messages.last = Message(
@@ -409,9 +438,9 @@ class ChatProvider with ChangeNotifier {
          await _dbService.insertMessage(_currentChat!.messages.last, false);
       }
 
-      // Voice Mode: Auto-Speak Response
-      if (_isContinuousVoiceMode) {
-          await speakMessage(fullResponse);
+      // Voice Mode: Speak remaining buffer (if any)
+      if (_isContinuousVoiceMode && sentenceBuffer.trim().isNotEmpty) {
+          _ttsService.speakQueued(sentenceBuffer.trim());
       }
 
     } catch (e) {
