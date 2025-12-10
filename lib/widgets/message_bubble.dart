@@ -18,23 +18,32 @@ class MessageBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // 1. Determine roles
     final isUser = message.role == MessageRole.user;
     final isSystem = message.role == MessageRole.system;
-    
-    // System messages (errors, info)
+
+    // 2. System Message
     if (isSystem) {
-      return Center(
+       // ... existing system message code ...
+       return Center(
         child: Container(
-          margin: const EdgeInsets.symmetric(vertical: 8),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          margin: const EdgeInsets.symmetric(vertical: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           decoration: BoxDecoration(
             color: Colors.red.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: Colors.red.withValues(alpha: 0.2)),
           ),
-          child: Text(
-            message.content,
-            style: TextStyle(color: Colors.red[300], fontSize: 12),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+                Icon(Icons.info_outline, size: 16, color: Colors.red[300]),
+                const SizedBox(width: 8),
+                Text(
+                    message.content,
+                    style: TextStyle(color: Colors.red[300], fontSize: 13, fontWeight: FontWeight.w500),
+                ),
+            ],
           ),
         ),
       ).animate().fade().scale();
@@ -42,161 +51,199 @@ class MessageBubble extends StatelessWidget {
 
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    
+    final chatProvider = context.watch<ChatProvider>();
+
+    // 3. Main Bubble Layout
     return Align(
       alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
-      child: Container(
-        margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 16),
-        constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.85),
-        decoration: BoxDecoration(
-          gradient: isUser ? AppTheme.getPrimaryGradient(colorScheme.primary) : null,
-          color: isUser ? null : colorScheme.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+        child: Column(
+            // Align column content (Bubble + Actions)
+            crossAxisAlignment: isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
             children: [
-              if (message.attachmentPath != null) ...[
-                  Container(
-                      margin: const EdgeInsets.only(bottom: 10),
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                              const Icon(Icons.attachment, size: 16, color: Colors.white70),
-                              const SizedBox(width: 8),
-                              Flexible(
-                                child: Text(
-                                  message.attachmentPath!.split('/').last, 
-                                  maxLines:1, 
-                                  overflow:TextOverflow.ellipsis,
-                                  style: const TextStyle(fontSize: 12, color: Colors.white70),
-                                )
-                              )
-                          ]
-                      )
-                  ),
-              ],
-              
-              MarkdownBody(
-                data: message.content,
-                styleSheet: MarkdownStyleSheet(
-                  p: TextStyle(
-                    color: isUser ? Colors.white : colorScheme.onSurface,
-                    fontSize: 16,
-                    height: 1.5,
-                  ),
-                  code: TextStyle(
-                    color: isUser ? Colors.white70 : colorScheme.onSurfaceVariant,
-                    backgroundColor: isUser ? Colors.black.withValues(alpha: 0.2) : Colors.black.withValues(alpha: 0.1),
-                    fontFamily: 'monospace',
-                    fontSize: 13,
-                  ),
-                  codeblockDecoration: BoxDecoration(
-                    color: isUser ? Colors.black.withValues(alpha: 0.2) : Colors.black.withValues(alpha: 0.3), // Darker background for code blocks
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
-                  ),
-                  blockquoteDecoration: BoxDecoration(
-                    color: isUser ? Colors.black.withValues(alpha: 0.1) : Colors.blueGrey.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border(left: BorderSide(color: isUser ? Colors.white70 : AppTheme.accent, width: 4)),
-                  ),
-                  blockquote: TextStyle(
-                     color: isUser ? Colors.white70 : colorScheme.onSurface.withValues(alpha: 0.9),
-                  ),
-                  listBullet: TextStyle(
-                    color: isUser ? Colors.white70 : colorScheme.primary,
-                  ),
-                  tableHead: const TextStyle(fontWeight: FontWeight.bold),
-                  tableBorder: TableBorder.all(color: Colors.grey.withValues(alpha: 0.5), width: 0.5),
-                  tableBody: TextStyle(
-                     color: isUser ? Colors.white : colorScheme.onSurface,
-                  ),
-                  checkbox: TextStyle(
-                      color: isUser ? Colors.white : AppTheme.accent, // Fix checkbox color
-                  ),
-                ),
-                selectable: true,
-                builders: {
-                  'code': CodeElementBuilder(context),
-                },
-              ),
-
-
-              
-              // Actions Row for Assistant
-              if (!isUser && !isSystem)
-                Padding(
-                  padding: const EdgeInsets.only(top: 8.0),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                        Consumer<ChatProvider>(
-                            builder: (context, chat, _) {
-                                // Simple check: if TTS is playing, we don't know EXACTLY which message is playing without more state,
-                                // but for now we can toggle the global stop or speak this specific text.
-                                // Ideal: ChatProvider tracks 'playingMessageId'. 
-                                // For MVP: Toggle icon based on global state IF we were the ones who started it? 
-                                // Let's just show 'Volume Up' to speak, and 'Stop' if isTtsPlaying.
-                                // Ideally we want to know if *this* message is playing.
-                                // We'll stick to a simple play button that stops others.
-                                return InkWell(
-                                    onTap: () {
-                                        chat.speakMessage(message.content);
-                                    },
-                                    child: Padding(
-                                        padding: const EdgeInsets.all(4.0),
-                                        child: Icon(
-                                            Icons.volume_up_outlined, 
-                                            size: 16, 
-                                            color: colorScheme.onSurfaceVariant.withValues(alpha: 0.5)
-                                        ),
+                Container(
+                    constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.85),
+                    decoration: BoxDecoration(
+                        color: isUser 
+                            ? colorScheme.primary 
+                            : const Color(0xFF2A2A2A),
+                        borderRadius: BorderRadius.only(
+                            topLeft: const Radius.circular(20),
+                            topRight: const Radius.circular(20),
+                            bottomLeft: Radius.circular(isUser ? 20 : 4),
+                            bottomRight: Radius.circular(isUser ? 4 : 20),
+                        ),
+                        boxShadow: [
+                            BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.1),
+                                blurRadius: 8,
+                                offset: const Offset(0, 2),
+                            )
+                        ]
+                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                            // AI Header (Avatar + Name)
+                            if (!isUser)
+                                Padding(
+                                    padding: const EdgeInsets.only(bottom: 8),
+                                    child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                            _buildAvatar(context, isUser, chatProvider, size: 24, iconSize: 14),
+                                            const SizedBox(width: 8),
+                                            Text(
+                                                chatProvider.currentPersona.name,
+                                                style: TextStyle(
+                                                    color: colorScheme.onSurface.withValues(alpha: 0.7),
+                                                    fontSize: 12,
+                                                    fontWeight: FontWeight.bold
+                                                ),
+                                            ),
+                                        ],
                                     ),
-                                );
-                            }
-                        ),
-                        const SizedBox(width: 8),
-                        // Copy Button
-                        InkWell(
-                            onTap: () {
-                                Clipboard.setData(ClipboardData(text: message.content));
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(content: const Text('Copied'), behavior: SnackBarBehavior.floating, width: 100, backgroundColor: theme.primaryColor, duration: const Duration(milliseconds: 500))
-                                );
-                            },
-                            child: Padding(
-                                padding: const EdgeInsets.all(4.0),
-                                child: Icon(
-                                    Icons.copy, 
-                                    size: 16, 
-                                    color: colorScheme.onSurfaceVariant.withValues(alpha: 0.5)
                                 ),
+
+                            // Attachments
+                            if (message.attachmentPath != null) _buildAttachmentPreview(message.attachmentPath!),
+
+                            // Text Content
+                            MarkdownBody(
+                                data: message.content,
+                                styleSheet: MarkdownStyleSheet(
+                                    p: TextStyle(
+                                        color: isUser ? Colors.white : const Color(0xFFE0E0E0),
+                                        fontSize: 15,
+                                        height: 1.5,
+                                    ),
+                                    code: TextStyle(
+                                        color: isUser ? Colors.white70 : const Color(0xFFE0E0E0),
+                                        backgroundColor: Colors.black.withValues(alpha: 0.2),
+                                        fontFamily: 'monospace',
+                                        fontSize: 13,
+                                    ),
+                                    codeblockDecoration: BoxDecoration(
+                                        color: Colors.black.withValues(alpha: 0.3),
+                                        borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    blockquoteDecoration: BoxDecoration(
+                                        color: Colors.white.withValues(alpha: 0.05),
+                                        borderRadius: BorderRadius.circular(8),
+                                        border: Border(left: BorderSide(color: isUser ? Colors.white54 : AppTheme.accent, width: 3)),
+                                    ),
+                                ),
+                                selectable: true,
+                                builders: {
+                                    'code': CodeElementBuilder(context),
+                                },
                             ),
-                        ),
-                    ],
-                  ),
+                        ],
+                    ),
                 ),
+
+                // Action Buttons (Below bubble for AI)
+                if (!isUser)
+                    Padding(
+                        padding: const EdgeInsets.only(top: 6, left: 4),
+                        child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                                _buildActionButton(
+                                    context, 
+                                    icon: Icons.volume_up_outlined, 
+                                    onTap: () => chatProvider.speakMessage(message.content)
+                                ),
+                                const SizedBox(width: 12),
+                                _buildActionButton(
+                                    context, 
+                                    icon: Icons.copy_outlined, 
+                                    onTap: () {
+                                            Clipboard.setData(ClipboardData(text: message.content));
+                                            ScaffoldMessenger.of(context).showSnackBar(
+                                                SnackBar(
+                                                    content: const Text('Copied'), 
+                                                    behavior: SnackBarBehavior.floating, 
+                                                    width: 100, 
+                                                    backgroundColor: theme.primaryColor, 
+                                                    duration: const Duration(milliseconds: 500)
+                                                )
+                                            );
+                                    }
+                                ),
+                            ],
+                        ),
+                    ),
             ],
-          ),
         ),
       ),
-    ).animate().slideY(begin: 0.3, end: 0, duration: 400.ms, curve: Curves.easeOutBack).fadeIn();
+    ).animate().fadeIn(duration: 400.ms).slideY(begin: 0.1, end: 0, duration: 400.ms, curve: Curves.easeOutQuad);
   }
-}
+
+  Widget _buildAvatar(BuildContext context, bool isUser, ChatProvider chatProvider, {double size = 36, double iconSize = 20}) {
+      return Container(
+          width: size,
+          height: size,
+          decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: isUser 
+                 ? AppTheme.getPrimaryGradient(Theme.of(context).colorScheme.primary)
+                 : null,
+              color: isUser ? null : const Color(0xFF1E1E1E), // Dark background for AI icon
+              border: Border.all(color: Colors.white.withValues(alpha: 0.1), width: 1),
+              boxShadow: [
+                  BoxShadow(color: Colors.black.withValues(alpha: 0.2), blurRadius: 4, offset: const Offset(0, 2))
+              ]
+          ),
+          child: Icon(
+              isUser ? Icons.person : chatProvider.currentPersona.icon,
+              size: iconSize,
+              color: Colors.white,
+          ),
+      );
+  }
+
+  Widget _buildActionButton(BuildContext context, {required IconData icon, required VoidCallback onTap}) {
+      return InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(20),
+          child: Padding(
+              padding: const EdgeInsets.all(4),
+              child: Icon(icon, size: 16, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5)),
+          ),
+      );
+  }
+
+  Widget _buildAttachmentPreview(String path) {
+      return Container(
+          margin: const EdgeInsets.only(bottom: 10),
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: 0.2),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                  const Icon(Icons.attachment, size: 16, color: Colors.white70),
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: Text(
+                      path.split('/').last, 
+                      maxLines: 1, 
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 12, color: Colors.white70),
+                    )
+                  )
+              ]
+          )
+      );
+  }
+
+  }
+
 
 class CodeElementBuilder extends MarkdownElementBuilder {
   final BuildContext context;
