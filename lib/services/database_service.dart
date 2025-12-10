@@ -24,8 +24,9 @@ class DatabaseService {
     String path = join(await getDatabasesPath(), AppConstants.dbName);
     return await openDatabase(
       path,
-      version: AppConstants.dbVersion,
+      version: 2, // Incremented version
       onCreate: _onCreate,
+      onUpgrade: _onUpgrade,
     );
   }
 
@@ -35,7 +36,8 @@ class DatabaseService {
         id TEXT PRIMARY KEY,
         title TEXT,
         created_at TEXT,
-        updated_at TEXT
+        updated_at TEXT,
+        system_prompt TEXT
       )
     ''');
     
@@ -51,6 +53,12 @@ class DatabaseService {
         FOREIGN KEY (chat_id) REFERENCES ${AppConstants.tableNameChats} (id) ON DELETE CASCADE
       )
     ''');
+  }
+
+  Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      await db.execute('ALTER TABLE ${AppConstants.tableNameChats} ADD COLUMN system_prompt TEXT');
+    }
   }
 
   // Chat Operations

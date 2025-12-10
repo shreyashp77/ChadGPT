@@ -7,6 +7,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import '../providers/chat_provider.dart';
 import '../providers/settings_provider.dart';
 import '../models/message.dart';
+import '../models/persona.dart';
 import '../utils/theme.dart';
 import '../widgets/message_bubble.dart';
 import '../widgets/app_drawer.dart';
@@ -88,6 +89,14 @@ class _ChatScreenState extends State<ChatScreen> {
         centerTitle: true,
         title: Text(currentChat?.title ?? 'Grok'),
         actions: [
+            // Persona Selector
+            Consumer<ChatProvider>(
+                builder: (context, chat, _) => IconButton(
+                    icon: Icon(chat.currentPersona.icon, color: Colors.white70),
+                    tooltip: 'Change Persona',
+                    onPressed: () => _showPersonaSelector(context),
+                ),
+            ),
             Consumer<ChatProvider>(
                 builder: (context, chat, _) => IconButton(
                     icon: Icon(chat.isTempMode ? Icons.visibility_off : Icons.history, 
@@ -537,6 +546,67 @@ class _ChatScreenState extends State<ChatScreen> {
                                   );
                               },
                           ),
+                      ),
+                      const SizedBox(height: 8),
+                  ],
+              ),
+          ),
+      );
+  }
+
+  void _showPersonaSelector(BuildContext context) {
+      showModalBottomSheet(
+          context: context,
+          backgroundColor: Colors.transparent,
+          isScrollControlled: true,
+          builder: (ctx) => Container(
+              margin: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                  color: const Color(0xFF1E1E1E), 
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+                  boxShadow: [
+                      BoxShadow(color: Colors.black.withValues(alpha: 0.5), blurRadius: 20, offset: const Offset(0, 10))
+                  ]
+              ),
+              child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                      const Padding(
+                        padding: EdgeInsets.all(16.0),
+                        child: Text('Choose Personality', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                      ),
+                      const Divider(color: Colors.white10, height: 1),
+                      Flexible(
+                          child: Consumer<ChatProvider>(
+                              builder: (context, chat, _) => ListView.builder(
+                              shrinkWrap: true,
+                              padding: const EdgeInsets.symmetric(vertical: 8),
+                              itemCount: Persona.presets.length,
+                              itemBuilder: (context, index) {
+                                  final persona = Persona.presets[index];
+                                  final isSelected = chat.currentPersona.id == persona.id;
+                                  
+                                  return ListTile(
+                                      leading: Container(
+                                          padding: const EdgeInsets.all(8),
+                                          decoration: BoxDecoration(
+                                              color: isSelected ? AppTheme.accent.withValues(alpha: 0.2) : Colors.white.withValues(alpha: 0.05),
+                                              borderRadius: BorderRadius.circular(12),
+                                          ),
+                                          child: Icon(persona.icon, color: isSelected ? AppTheme.accent : Colors.white70),
+                                      ),
+                                      title: Text(persona.name, style: TextStyle(color: isSelected ? AppTheme.accent : Colors.white, fontWeight: FontWeight.bold)),
+                                      subtitle: Text(persona.description, style: const TextStyle(color: Colors.white54, fontSize: 12)),
+                                      trailing: isSelected ? const Icon(Icons.check_circle, color: AppTheme.accent) : null,
+                                      onTap: () {
+                                          chat.setPersona(persona);
+                                          Navigator.pop(ctx);
+                                      },
+                                  );
+                              },
+                          ),
+                        ),
                       ),
                       const SizedBox(height: 8),
                   ],

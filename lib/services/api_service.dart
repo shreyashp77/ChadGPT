@@ -58,6 +58,7 @@ class ApiService {
     required String modelId,
     required List<Message> messages,
     List<String>? searchResults,
+    String? systemPrompt,
   }) async* {
     
     // Construct messages payload.
@@ -65,12 +66,13 @@ class ApiService {
     final List<Map<String, dynamic>> apiMessages = [];
     
     // System message
-    String systemContent = "You are a helpful AI assistant.";
+    String systemContent = systemPrompt ?? "You are a helpful AI assistant.";
     if (searchResults != null && searchResults.isNotEmpty) {
       systemContent += "\n\nUse the following search results to answer the user's question:\n${searchResults.join('\n\n')}";
     }
     
     apiMessages.add({'role': 'system', 'content': systemContent});
+    print('DEBUG: Sending System Prompt: $systemContent'); // Debug logging
 
     // Chat history
     // Sliding Window: Keep only the last 20 messages to manage context

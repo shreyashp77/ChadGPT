@@ -4,6 +4,7 @@ import '../models/chat_session.dart';
 import '../models/message.dart';
 import '../services/database_service.dart';
 import 'settings_provider.dart';
+import '../models/persona.dart';
 
 class ChatProvider with ChangeNotifier {
   final DatabaseService _dbService = DatabaseService();
@@ -13,11 +14,13 @@ class ChatProvider with ChangeNotifier {
   ChatSession? _currentChat;
   bool _isTyping = false;
   bool _isTempMode = false;
+  Persona? _currentPersona;
   
   List<ChatSession> get chats => _chats;
   ChatSession? get currentChat => _currentChat;
   bool get isTyping => _isTyping;
   bool get isTempMode => _isTempMode;
+  Persona get currentPersona => _currentPersona ?? Persona.presets.first; // Default to first (Default) if null
 
   ChatProvider(this._settingsProvider) {
     _loadChats();
@@ -35,7 +38,20 @@ class ChatProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  void startNewChat() {
+  void setPersona(Persona persona) {
+      _currentPersona = persona;
+      if (_currentChat != null) {
+          _currentChat!.systemPrompt = persona.systemPrompt;
+          // Only update DB if the chat has actually been saved (has messages)
+          if (_currentChat!.messages.isNotEmpty) {
+             _dbService.updateChat(_currentChat!);
+          }
+      }
+      notifyListeners();
+  }
+
+  void startNewChat({Persona? persona}) {
+    _currentPersona = persona ?? Persona.presets.first;
     _currentChat = ChatSession(
       id: const Uuid().v4(),
       title: 'New Chat',
@@ -43,6 +59,7 @@ class ChatProvider with ChangeNotifier {
       updatedAt: DateTime.now(),
       messages: [],
       isTemp: _isTempMode,
+      systemPrompt: _currentPersona!.systemPrompt,
     );
     notifyListeners();
   }
@@ -173,8 +190,9 @@ class ChatProvider with ChangeNotifier {
 
       final stream = _settingsProvider.apiService.chatCompletionStream(
         modelId: _settingsProvider.settings.selectedModelId!,
-        messages: _currentChat!.messages.where((m) => m.id != assistantMsgId).toList(), // Exclude the empty one we just added? API needs history. Valid.
+        messages: _currentChat!.messages.where((m) => m.id != assistantMsgId).toList(), 
         searchResults: searchResults,
+        systemPrompt: _currentChat!.systemPrompt,
       );
 
       String fullResponse = "";

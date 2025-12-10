@@ -7,6 +7,7 @@ class ChatSession {
   DateTime updatedAt;
   List<Message> messages;
   final bool isTemp;
+  String? systemPrompt;
 
   ChatSession({
     required this.id,
@@ -15,6 +16,7 @@ class ChatSession {
     required this.updatedAt,
     List<Message>? messages,
     this.isTemp = false,
+    this.systemPrompt,
   }) : messages = messages ?? [];
 
   Map<String, dynamic> toMap() {
@@ -23,9 +25,7 @@ class ChatSession {
       'title': title,
       'created_at': createdAt.toIso8601String(),
       'updated_at': updatedAt.toIso8601String(),
-      // isTemp is likely not stored in DB if we never save temp chats, 
-      // but if we want to support converting temp to saved later, we might not need to store it initially.
-      // However, for code consistency we might want to know if a persisted chat is flagged.
+      'system_prompt': systemPrompt,
     };
   }
 
@@ -36,7 +36,8 @@ class ChatSession {
       createdAt: DateTime.parse(map['created_at']),
       updatedAt: DateTime.parse(map['updated_at']),
       messages: [], // Messages loaded separately
-      isTemp: false, // By default loaded from DB means not temp in the RAM-only sense
+      isTemp: false,
+      systemPrompt: map['system_prompt'],
     );
   }
 }
