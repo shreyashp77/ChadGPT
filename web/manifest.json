@@ -1,6 +1,6 @@
 {
-    "name": "chadgpt",
-    "short_name": "chadgpt",
+    "name": "ChadGPT",
+    "short_name": "ChadGPT",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

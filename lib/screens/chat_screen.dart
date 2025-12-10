@@ -91,9 +91,10 @@ class _ChatScreenState extends State<ChatScreen> {
       extendBodyBehindAppBar: true,
       drawer: const AppDrawer(),
       appBar: AppBar(
-        centerTitle: true,
+        centerTitle: false,
         title: Consumer<ChatProvider>(
           builder: (context, chat, _) => Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 chat.currentChat?.title ?? 'New Chat',
