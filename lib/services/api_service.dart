@@ -73,7 +73,13 @@ class ApiService {
     apiMessages.add({'role': 'system', 'content': systemContent});
 
     // Chat history
-    for (var msg in messages) {
+    // Sliding Window: Keep only the last 20 messages to manage context
+    var contextMessages = messages;
+    if (messages.length > 20) {
+      contextMessages = messages.sublist(messages.length - 20);
+    }
+
+    for (var msg in contextMessages) {
        // Handle attachments if present (assuming base64 handling is done in Message model or logic before here)
        // For simplicity, we just send text for now, but will expand for attachments later.
        if (msg.role != MessageRole.system) {

@@ -296,46 +296,47 @@ class _ChatScreenState extends State<ChatScreen> {
                                          shape: BoxShape.circle,
                                          gradient: AppTheme.getPrimaryGradient(Theme.of(context).colorScheme.primary),
                                      ),
-                                     child: IconButton(
-                                       color: Colors.white,
-                                       icon: _pendingAttachmentPath == null && _textController.text.isEmpty && chatProvider.isTyping
-                                            ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                                      child: IconButton(
+                                        color: Colors.white,
+                                        icon: chatProvider.isTyping 
+                                            ? const Icon(Icons.stop, size: 20)
                                             : const Icon(Icons.arrow_upward, size: 20),
-                                       onPressed: chatProvider.isTyping ? null : () async {
-                                           if (_textController.text.trim().isNotEmpty || _pendingAttachmentPath != null) {
-                                               final text = _textController.text;
-                                               final path = _pendingAttachmentPath;
-                                               final type = _pendingAttachmentType;
-                                               final useSearch = _useWebSearch;
-                                               
-                                               _textController.clear();
-                                               setState(() {
-                                                   _pendingAttachmentPath = null;
-                                                   _pendingAttachmentType = null;
-                                                   // Don't reset web search? Or reset it? Grok keeps context usually. 
-                                                   // Let's keep it for now, or reset if desired. 
-                                                   // Resetting for safety.
-                                                   _useWebSearch = false; 
-                                               });
-                   
-                                               try {
-                                                 await chatProvider.sendMessage(
-                                                   text, 
-                                                   attachmentPath: path, 
-                                                   attachmentType: type,
-                                                   useWebSearch: useSearch
-                                                 );
-                                                 _scrollToBottom();
-                                               } catch (e) {
-                                                  if (context.mounted) {
-                                                     ScaffoldMessenger.of(context).showSnackBar(
-                                                         SnackBar(content: Text(e.toString().replaceAll('Exception: ', '')), backgroundColor: Colors.red),
-                                                     );
-                                                  }
-                                               }
-                                           }
-                                       },
-                                     ),
+                                        onPressed: chatProvider.isTyping 
+                                            ? () {
+                                                chatProvider.stopGeneration();
+                                              }
+                                            : () async {
+                                            if (_textController.text.trim().isNotEmpty || _pendingAttachmentPath != null) {
+                                                final text = _textController.text;
+                                                final path = _pendingAttachmentPath;
+                                                final type = _pendingAttachmentType;
+                                                final useSearch = _useWebSearch;
+                                                
+                                                _textController.clear();
+                                                setState(() {
+                                                    _pendingAttachmentPath = null;
+                                                    _pendingAttachmentType = null; 
+                                                    _useWebSearch = false; 
+                                                });
+                    
+                                                try {
+                                                  await chatProvider.sendMessage(
+                                                    text, 
+                                                    attachmentPath: path, 
+                                                    attachmentType: type,
+                                                    useWebSearch: useSearch
+                                                  );
+                                                  _scrollToBottom();
+                                                } catch (e) {
+                                                   if (context.mounted) {
+                                                      ScaffoldMessenger.of(context).showSnackBar(
+                                                          SnackBar(content: Text(e.toString().replaceAll('Exception: ', '')), backgroundColor: Colors.red),
+                                                      );
+                                                   }
+                                                }
+                                            }
+                                        },
+                                      ),
                                  ),
                                ],
                              ),

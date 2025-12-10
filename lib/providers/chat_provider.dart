@@ -89,12 +89,22 @@ class ChatProvider with ChangeNotifier {
     notifyListeners();
   }
 
+  bool _abortGeneration = false;
+
+  void stopGeneration() {
+    _abortGeneration = true;
+    _isTyping = false;
+    notifyListeners();
+  }
+
   Future<void> sendMessage(String content, {String? attachmentPath, String? attachmentType, bool useWebSearch = false}) async {
     if (_currentChat == null) startNewChat();
     
     if (_settingsProvider.settings.selectedModelId == null) {
         throw Exception("No model selected. Please check your settings and connection.");
     }
+
+    _abortGeneration = false;
     
     final userMsg = Message(
       id: const Uuid().v4(),
@@ -158,6 +168,8 @@ class ChatProvider with ChangeNotifier {
           // For now simple blocking wait
           searchResults = await _settingsProvider.apiService.searchWeb(content);
       }
+      
+      if (_abortGeneration) return;
 
       final stream = _settingsProvider.apiService.chatCompletionStream(
         modelId: _settingsProvider.settings.selectedModelId!,
@@ -168,6 +180,8 @@ class ChatProvider with ChangeNotifier {
       String fullResponse = "";
       
       await for (final chunk in stream) {
+        if (_abortGeneration) break;
+        
         fullResponse += chunk;
         // Update the last message in the list directly
         _currentChat!.messages.last = Message(

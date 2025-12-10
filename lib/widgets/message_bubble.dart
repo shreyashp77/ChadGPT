@@ -1,8 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
+import 'package:flutter_highlighter/flutter_highlighter.dart';
+import 'package:flutter_highlighter/themes/atom-one-dark.dart';
+import 'package:markdown/markdown.dart' as md;
 import 'package:flutter_animate/flutter_animate.dart';
 import '../models/message.dart';
 import '../utils/theme.dart';
+
 
 class MessageBubble extends StatelessWidget {
   final Message message;
@@ -124,7 +129,11 @@ class MessageBubble extends StatelessWidget {
                   ),
                 ),
                 selectable: true,
+                builders: {
+                  'code': CodeElementBuilder(context),
+                },
               ),
+
             ],
           ),
         ),
@@ -132,3 +141,114 @@ class MessageBubble extends StatelessWidget {
     ).animate().slideY(begin: 0.3, end: 0, duration: 400.ms, curve: Curves.easeOutBack).fadeIn();
   }
 }
+
+class CodeElementBuilder extends MarkdownElementBuilder {
+  final BuildContext context;
+  
+  CodeElementBuilder(this.context);
+
+  @override
+  Widget? visitElementAfter(md.Element element, TextStyle? preferredStyle) {
+    String content = element.textContent;
+    
+    // Check if it's likely a code block (multiline)
+    if (!content.contains('\n')) {
+      // Inline code
+      final isUser = (context.findAncestorWidgetOfExactType<MessageBubble>()?.message.role == MessageRole.user);
+      final colorScheme = Theme.of(context).colorScheme;
+      return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+          decoration: BoxDecoration(
+              color: isUser ? Colors.black.withValues(alpha: 0.2) : Colors.black.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(4),
+          ),
+          child: Text(content, style: TextStyle(
+             fontFamily: 'monospace', 
+             color: isUser ? Colors.white70 : colorScheme.onSurfaceVariant,
+             fontSize: 13
+          ))
+      );
+    }
+
+    String language = '';
+    if (element.attributes['class'] != null) {
+      String lg = element.attributes['class'] as String;
+      // class is usually "language-dart"
+      if (lg.startsWith('language-')) {
+          language = lg.substring(9);
+      } else {
+          language = lg;
+      }
+    }
+    
+    // If language is empty, try to guess or default
+    if (language.isEmpty) language = 'plaintext';
+
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 8),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: Stack(
+          children: [
+            // Code Highlighting
+            SizedBox(
+                width: double.infinity,
+                child: HighlightView(
+                  content.trimRight(), // Trim trailing newline often added by parsers
+                  language: language,
+                  theme: atomOneDarkTheme, // premium dark theme
+                  padding: const EdgeInsets.all(16).copyWith(top: 40), // Space for copy button
+                  textStyle: const TextStyle(
+                    fontFamily: 'monospace',
+                    fontSize: 14,
+                  ),
+                ),
+            ),
+            
+            // Header with language and copy button
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                color: Colors.white.withValues(alpha: 0.1),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      language.toUpperCase(), 
+                      style: const TextStyle(color: Colors.white54, fontSize: 10, fontWeight: FontWeight.bold)
+                    ),
+                    InkWell(
+                      onTap: () {
+                         Clipboard.setData(ClipboardData(text: content.trim()));
+                         ScaffoldMessenger.of(context).showSnackBar(
+                             SnackBar(
+                                 content: const Text('Code copied to clipboard'), 
+                                 behavior: SnackBarBehavior.floating,
+                                 width: 200,
+                                 backgroundColor: Theme.of(context).colorScheme.primary,
+                                 duration: const Duration(seconds: 1),
+                             )
+                         );
+                      },
+                      child: const Row(
+                        children: [
+                            Icon(Icons.copy, size: 14, color: Colors.white54),
+                            SizedBox(width: 4),
+                            Text('Copy', style: TextStyle(color: Colors.white54, fontSize: 10))
+                        ],
+                      ),
+                    )
+                  ],
+                ),
+              ),
+            )
+          ],
+        ),
+      ),
+    );
+  }
+}
+
