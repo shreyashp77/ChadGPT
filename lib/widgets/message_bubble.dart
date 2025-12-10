@@ -5,6 +5,8 @@ import 'package:flutter_highlighter/flutter_highlighter.dart';
 import 'package:flutter_highlighter/themes/atom-one-dark.dart';
 import 'package:markdown/markdown.dart' as md;
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:provider/provider.dart';
+import '../providers/chat_provider.dart';
 import '../models/message.dart';
 import '../utils/theme.dart';
 
@@ -134,6 +136,60 @@ class MessageBubble extends StatelessWidget {
                 },
               ),
 
+
+              
+              // Actions Row for Assistant
+              if (!isUser && !isSystem)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8.0),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                        Consumer<ChatProvider>(
+                            builder: (context, chat, _) {
+                                // Simple check: if TTS is playing, we don't know EXACTLY which message is playing without more state,
+                                // but for now we can toggle the global stop or speak this specific text.
+                                // Ideal: ChatProvider tracks 'playingMessageId'. 
+                                // For MVP: Toggle icon based on global state IF we were the ones who started it? 
+                                // Let's just show 'Volume Up' to speak, and 'Stop' if isTtsPlaying.
+                                // Ideally we want to know if *this* message is playing.
+                                // We'll stick to a simple play button that stops others.
+                                return InkWell(
+                                    onTap: () {
+                                        chat.speakMessage(message.content);
+                                    },
+                                    child: Padding(
+                                        padding: const EdgeInsets.all(4.0),
+                                        child: Icon(
+                                            Icons.volume_up_outlined, 
+                                            size: 16, 
+                                            color: colorScheme.onSurfaceVariant.withValues(alpha: 0.5)
+                                        ),
+                                    ),
+                                );
+                            }
+                        ),
+                        const SizedBox(width: 8),
+                        // Copy Button
+                        InkWell(
+                            onTap: () {
+                                Clipboard.setData(ClipboardData(text: message.content));
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: const Text('Copied'), behavior: SnackBarBehavior.floating, width: 100, backgroundColor: theme.primaryColor, duration: const Duration(milliseconds: 500))
+                                );
+                            },
+                            child: Padding(
+                                padding: const EdgeInsets.all(4.0),
+                                child: Icon(
+                                    Icons.copy, 
+                                    size: 16, 
+                                    color: colorScheme.onSurfaceVariant.withValues(alpha: 0.5)
+                                ),
+                            ),
+                        ),
+                    ],
+                  ),
+                ),
             ],
           ),
         ),

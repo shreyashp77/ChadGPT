@@ -8,11 +8,18 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../services/database_service.dart';
 import 'settings_provider.dart';
 import '../models/persona.dart';
+import '../services/tts_service.dart';
+import 'package:speech_to_text/speech_to_text.dart' as stt;
 
 class ChatProvider with ChangeNotifier {
   final DatabaseService _dbService = DatabaseService();
   final SettingsProvider _settingsProvider;
-
+  final TtsService _ttsService = TtsService();
+  
+  // STT
+  final stt.SpeechToText _speech = stt.SpeechToText();
+  bool _isListening = false;
+  
   // ... other imports
 
   List<ChatSession> _chats = [];
@@ -28,10 +35,77 @@ class ChatProvider with ChangeNotifier {
   bool get isTempMode => _isTempMode;
   Persona get currentPersona => _currentPersona ?? Persona.presets.first;
   List<Persona> get allPersonas => [...Persona.presets, ..._customPersonas];
+  
+  // Voice getters
+  bool get isListening => _isListening;
+  bool get isTtsPlaying => _ttsService.isPlaying;
+  TtsService get ttsService => _ttsService;
 
   ChatProvider(this._settingsProvider) {
     _loadChats();
     _loadCustomPersonas();
+    
+    // Listen to TTS state changes
+    _ttsService.onStateChanged = (isPlaying) {
+        notifyListeners();
+    };
+  }
+
+  // Voice Methods
+  Future<bool> initializeStt() async {
+      return await _speech.initialize(
+        onStatus: (status) {
+             if (status == 'done' || status == 'notListening') {
+                 _isListening = false;
+                 notifyListeners();
+             }
+        },
+        onError: (error) {
+             _isListening = false;
+             notifyListeners();
+             print('STT Error: $error');
+        },
+      );
+  }
+
+  Future<void> startListening(Function(String) onResult) async {
+       if (!_speech.isAvailable) {
+           bool available = await initializeStt();
+           if (!available) return;
+       }
+
+       _isListening = true;
+       notifyListeners();
+
+       _speech.listen(
+           onResult: (result) {
+               onResult(result.recognizedWords);
+           },
+           listenFor: const Duration(seconds: 30),
+           pauseFor: const Duration(seconds: 5),
+           partialResults: true,
+           localeId: "en_US",
+           cancelOnError: true,
+           listenMode: stt.ListenMode.dictation,
+       );
+  }
+
+  Future<void> stopListening() async {
+      _isListening = false;
+      await _speech.stop();
+      notifyListeners();
+  }
+
+  Future<void> speakMessage(String text) async {
+      if (_ttsService.isPlaying) {
+          await _ttsService.stop();
+      } else {
+          await _ttsService.speak(text);
+      }
+  }
+
+  Future<void> stopSpeaking() async {
+      await _ttsService.stop();
   }
 
   Future<void> _loadChats() async {

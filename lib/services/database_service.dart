@@ -57,7 +57,12 @@ class DatabaseService {
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
     if (oldVersion < 2) {
-      await db.execute('ALTER TABLE ${AppConstants.tableNameChats} ADD COLUMN system_prompt TEXT');
+       // Check if column exists to avoid duplicate column error during dev iterations
+       final columns = await db.rawQuery('PRAGMA table_info(${AppConstants.tableNameChats})');
+       final hasColumn = columns.any((column) => column['name'] == 'system_prompt');
+       if (!hasColumn) {
+           await db.execute('ALTER TABLE ${AppConstants.tableNameChats} ADD COLUMN system_prompt TEXT');
+       }
     }
   }
 

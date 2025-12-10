@@ -50,6 +50,9 @@ dependencies:
   transparent_image: ^2.0.1
   flutter_highlighter: ^0.1.1
   markdown: ^7.3.0
+  speech_to_text: ^7.0.0
+  flutter_tts: ^3.8.0
+  permission_handler: ^11.0.0
 
 dev_dependencies:
   flutter_test:
