@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../providers/chat_provider.dart';
@@ -43,7 +44,7 @@ class _VoiceModeOverlayState extends State<VoiceModeOverlay> with SingleTickerPr
     else statusText = "Waiting...";
 
     return Scaffold(
-        backgroundColor: Colors.black.withValues(alpha: 0.9),
+        backgroundColor: Colors.black, // Fully opaque black as requested
         body: SafeArea(
             child: Stack(
                 children: [
@@ -88,27 +89,53 @@ class _VoiceModeOverlayState extends State<VoiceModeOverlay> with SingleTickerPr
                                            opacity = 0.2;
                                        }
 
-                                       return Container(
-                                           width: 150,
-                                           height: 150,
-                                           decoration: BoxDecoration(
-                                               shape: BoxShape.circle,
-                                               color: color.withValues(alpha: opacity * 0.3),
-                                               boxShadow: [
-                                                   BoxShadow(
-                                                       color: color.withValues(alpha: opacity),
-                                                       blurRadius: 20 * scale,
-                                                       spreadRadius: 5 * scale,
-                                                   )
-                                               ]
-                                           ),
-                                           child: isThinking 
-                                               ? const CircularProgressIndicator(color: Colors.white70).p(40)
-                                               : Icon(
-                                                   isListening ? Icons.mic : (isSpeaking ? Icons.volume_up : Icons.more_horiz),
-                                                   size: 60,
-                                                   color: Colors.white,
+                                       return GestureDetector(
+                                           onTap: () async {
+                                               HapticFeedback.mediumImpact();
+                                               // Trigger stops immediately without awaiting first to ensure UI feels responsive
+                                               chatProvider.stopGeneration();
+                                               final stopSpeakingFuture = chatProvider.stopSpeaking();
+                                               
+                                               // Ensure we stop previous listening too if active
+                                               if (chatProvider.isListening) {
+                                                   await chatProvider.stopListening();
+                                               }
+                                               
+                                               // Ensure speaking is fully stopped on platform side before listening
+                                               await stopSpeakingFuture;
+
+                                               // Force start listening immediately
+                                               await chatProvider.startListening(
+                                                   (text) {
+                                                       if (text.trim().isNotEmpty) {
+                                                           chatProvider.sendMessage(text);
+                                                       }
+                                                   },
+                                                   waitForFinal: true
+                                               );
+                                           },
+                                           child: Container(
+                                               width: 150,
+                                               height: 150,
+                                               decoration: BoxDecoration(
+                                                   shape: BoxShape.circle,
+                                                   color: color.withValues(alpha: opacity * 0.3),
+                                                   boxShadow: [
+                                                       BoxShadow(
+                                                           color: color.withValues(alpha: opacity),
+                                                           blurRadius: 20 * scale,
+                                                           spreadRadius: 5 * scale,
+                                                       )
+                                                   ]
                                                ),
+                                               child: isThinking 
+                                                   ? const CircularProgressIndicator(color: Colors.white70).p(40)
+                                                   : Icon(
+                                                       isListening ? Icons.mic : (isSpeaking ? Icons.volume_up : Icons.more_horiz),
+                                                       size: 60,
+                                                       color: Colors.white,
+                                                   ),
+                                           ),
                                        );
                                     },
                                 ),

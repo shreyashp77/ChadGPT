@@ -97,6 +97,25 @@ class ChatProvider with ChangeNotifier {
              print('STT Error: $error');
              // If error in continuous mode (e.g. no speech), maybe we should just stop mode or retry?
              // For now, let's stop mode to avoid infinite error loops.
+             // Handle transient errors without stopping the mode
+             if (['error_speech_timeout', 'error_no_match', 'error_client'].contains(error.errorMsg)) {
+                  // If we are in continuous mode, we might want to just restart listening or ignore.
+                  // For client error, it signifies busy state, so we retry after small delay.
+                  if (_isContinuousVoiceMode) {
+                      Future.delayed(const Duration(milliseconds: 500), () {
+                          if (_isContinuousVoiceMode && !_isListening && !_isTyping) {
+                               startListening(
+                                   (text) {
+                                       if (text.trim().isNotEmpty) sendMessage(text);
+                                   },
+                                   waitForFinal: true
+                               );
+                          }
+                      });
+                      return;
+                  }
+             }
+
              if (_isContinuousVoiceMode) {
                  stopContinuousVoiceMode();
              }
@@ -134,6 +153,10 @@ class ChatProvider with ChangeNotifier {
        if (!_speech.isAvailable) {
            bool available = await initializeStt();
            if (!available) return;
+       }
+       
+       if (_isListening) {
+           await stopListening();
        }
 
        _isListening = true;
@@ -433,10 +456,13 @@ class ChatProvider with ChangeNotifier {
         );
 
         // Throttled Haptic Feedback (every ~80ms)
-        final now = DateTime.now().millisecondsSinceEpoch;
-        if (now - lastHapticTime > 80) {
-            HapticFeedback.selectionClick();
-            lastHapticTime = now;
+        // Only play haptics if NOT in continuous voice mode
+        if (!_isContinuousVoiceMode) {
+            final now = DateTime.now().millisecondsSinceEpoch;
+            if (now - lastHapticTime > 80) {
+                HapticFeedback.selectionClick();
+                lastHapticTime = now;
+            }
         }
         
         notifyListeners();

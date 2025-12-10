@@ -8,7 +8,9 @@ class TtsService {
   bool get isQueueEmpty => _speechQueue.isEmpty;
 
   bool _isPlaying = false;
+
   bool get isPlaying => _isPlaying;
+  bool _stoppedManually = false;
 
   // Callback for state changes
   Function(bool isPlaying)? onStateChanged;
@@ -105,13 +107,15 @@ class TtsService {
           onStateChanged?.call(false);
           onCurrentSentenceChanged?.call(null); // Clear subtitle
           // Only fire completion if we drained the queue naturally (not stopped)
-          if (_speechQueue.isEmpty) {
+          if (_speechQueue.isEmpty && !_stoppedManually) {
                onCompletion?.call();
           }
+          _stoppedManually = false;
       }
   }
 
   Future<void> stop() async {
+    _stoppedManually = true;
     _isPlaying = false; // Flag to stop processing loop
     _speechQueue.clear();
     onCurrentSentenceChanged?.call(null);
