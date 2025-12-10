@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:uuid/uuid.dart';
 import '../models/chat_session.dart';
 import '../models/message.dart';
@@ -248,18 +249,29 @@ class ChatProvider with ChangeNotifier {
 
       String fullResponse = "";
       
+      int lastHapticTime = 0; // Timestamp for throttling
+
       await for (final chunk in stream) {
         if (_abortGeneration) break;
         
         fullResponse += chunk;
-        // Update the last message in the list directly
+        
+         // Update the message in the list
         _currentChat!.messages.last = Message(
-             id: assistantMsgId,
-             chatId: _currentChat!.id,
-             role: MessageRole.assistant,
-             content: fullResponse,
-             timestamp: DateTime.now(),
+          id: assistantMsgId,
+          chatId: _currentChat!.id,
+          role: MessageRole.assistant,
+          content: fullResponse,
+          timestamp: DateTime.now(),
         );
+
+        // Throttled Haptic Feedback (every ~80ms)
+        final now = DateTime.now().millisecondsSinceEpoch;
+        if (now - lastHapticTime > 80) {
+            HapticFeedback.selectionClick();
+            lastHapticTime = now;
+        }
+        
         notifyListeners();
       }
       

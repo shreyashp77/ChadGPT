@@ -4,6 +4,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
 import 'dart:ui' as ui;
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:flutter/services.dart';
 import '../providers/chat_provider.dart';
 import '../providers/settings_provider.dart';
 import '../models/message.dart';
@@ -87,14 +88,42 @@ class _ChatScreenState extends State<ChatScreen> {
       drawer: const AppDrawer(),
       appBar: AppBar(
         centerTitle: true,
-        title: Text(currentChat?.title ?? 'Grok'),
+        title: Consumer<ChatProvider>(
+          builder: (context, chat, _) => Column(
+            children: [
+              Text(
+                chat.currentChat?.title ?? 'New Chat',
+                style: const TextStyle(color: Colors.white, fontSize: 16),
+              ),
+               if (chat.currentPersona.id != 'default')
+                 Text(
+                   chat.currentPersona.name,
+                   style: const TextStyle(color: Colors.white54, fontSize: 12),
+                 ),
+            ],
+          ),
+        ),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+         leading: Builder(
+          builder: (context) => IconButton(
+            icon: const Icon(Icons.menu, color: Colors.white),
+            onPressed: () {
+               HapticFeedback.lightImpact(); // Haptic
+               Scaffold.of(context).openDrawer();
+            },
+          ),
+        ),
         actions: [
             // Persona Selector
             Consumer<ChatProvider>(
                 builder: (context, chat, _) => IconButton(
                     icon: Icon(chat.currentPersona.icon, color: Colors.white70),
                     tooltip: 'Change Persona',
-                    onPressed: () => _showPersonaSelector(context),
+                    onPressed: () {
+                        HapticFeedback.lightImpact(); // Haptic
+                        _showPersonaSelector(context);
+                    },
                 ),
             ),
             Consumer<ChatProvider>(
@@ -103,6 +132,7 @@ class _ChatScreenState extends State<ChatScreen> {
                         color: chat.isTempMode ? Colors.white : Colors.white70),
                     tooltip: chat.isTempMode ? 'Turn off Incognito' : 'Turn on Incognito',
                     onPressed: () {
+                        HapticFeedback.lightImpact(); // Haptic
                         chat.toggleTempMode();
                     },
                 ),
@@ -310,44 +340,19 @@ class _ChatScreenState extends State<ChatScreen> {
                                         icon: chatProvider.isTyping 
                                             ? const Icon(Icons.stop, size: 20)
                                             : const Icon(Icons.arrow_upward, size: 20),
-                                        onPressed: chatProvider.isTyping 
-                                            ? () {
+                                        onPressed: () {
+                                            HapticFeedback.lightImpact(); // Haptic
+                                            if (chatProvider.isTyping) {
                                                 chatProvider.stopGeneration();
-                                              }
-                                            : () async {
-                                            if (_textController.text.trim().isNotEmpty || _pendingAttachmentPath != null) {
-                                                final text = _textController.text;
-                                                final path = _pendingAttachmentPath;
-                                                final type = _pendingAttachmentType;
-                                                final useSearch = _useWebSearch;
-                                                
-                                                _textController.clear();
-                                                setState(() {
-                                                    _pendingAttachmentPath = null;
-                                                    _pendingAttachmentType = null; 
-                                                    _useWebSearch = false; 
-                                                });
-                    
-                                                try {
-                                                  await chatProvider.sendMessage(
-                                                    text, 
-                                                    attachmentPath: path, 
-                                                    attachmentType: type,
-                                                    useWebSearch: useSearch
-                                                  );
-                                                  _scrollToBottom();
-                                                } catch (e) {
-                                                   if (context.mounted) {
-                                                      ScaffoldMessenger.of(context).showSnackBar(
-                                                          SnackBar(content: Text(e.toString().replaceAll('Exception: ', '')), backgroundColor: Colors.red),
-                                                      );
-                                                   }
+                                            } else {
+                                                if (_textController.text.trim().isNotEmpty || _pendingAttachmentPath != null) {
+                                                    _sendMessage();
                                                 }
                                             }
                                         },
                                       ),
-                                 ),
-                               ],
+                                    ),
+                                  ],
                              ),
                            ),
                         ],
@@ -580,6 +585,7 @@ class _ChatScreenState extends State<ChatScreen> {
                             const Text('Choose Personality', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
                             TextButton.icon(
                                 onPressed: () {
+                                    HapticFeedback.lightImpact(); // Haptic
                                     Navigator.pop(ctx);
                                     _showCreatePersonaDialog(context);
                                 },
@@ -649,5 +655,36 @@ class _ChatScreenState extends State<ChatScreen> {
               },
           ),
       );
+  }
+
+  Future<void> _sendMessage() async {
+    final chatProvider = context.read<ChatProvider>();
+    final text = _textController.text;
+    final path = _pendingAttachmentPath;
+    final type = _pendingAttachmentType;
+    final useSearch = _useWebSearch;
+    
+    _textController.clear();
+    setState(() {
+        _pendingAttachmentPath = null;
+        _pendingAttachmentType = null; 
+        _useWebSearch = false; 
+    });
+
+    try {
+      await chatProvider.sendMessage(
+        text, 
+        attachmentPath: path, 
+        attachmentType: type,
+        useWebSearch: useSearch
+      );
+      _scrollToBottom();
+    } catch (e) {
+       if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(e.toString().replaceAll('Exception: ', '')), backgroundColor: Colors.red),
+          );
+       }
+    }
   }
 }

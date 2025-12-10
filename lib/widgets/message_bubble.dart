@@ -222,6 +222,7 @@ class CodeElementBuilder extends MarkdownElementBuilder {
                     ),
                     InkWell(
                       onTap: () {
+                         HapticFeedback.selectionClick(); // Haptic
                          Clipboard.setData(ClipboardData(text: content.trim()));
                          ScaffoldMessenger.of(context).showSnackBar(
                              SnackBar(

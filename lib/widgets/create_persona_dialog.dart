@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../providers/settings_provider.dart';
 
@@ -122,7 +123,10 @@ class _CreatePersonaDialogState extends State<CreatePersonaDialog> {
                         ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)) 
                         : const Icon(Icons.auto_awesome, color: Colors.amber),
                     tooltip: 'Enhance with AI',
-                    onPressed: _isEnhancing ? null : _enhancePrompt,
+                    onPressed: _isEnhancing ? null : () {
+                        HapticFeedback.mediumImpact(); // Haptic for magic
+                        _enhancePrompt();
+                    },
                 ),
               ),
             ),
@@ -131,11 +135,17 @@ class _CreatePersonaDialogState extends State<CreatePersonaDialog> {
       ),
       actions: [
         TextButton(
-          onPressed: () => Navigator.of(context).pop(),
+          onPressed: () {
+              HapticFeedback.lightImpact(); // Haptic
+              Navigator.of(context).pop();
+          },
           child: const Text('Cancel', style: TextStyle(color: Colors.white54)),
         ),
         ElevatedButton(
-          onPressed: _submit,
+          onPressed: () {
+              HapticFeedback.lightImpact(); // Haptic
+              _submit();
+          },
           style: ElevatedButton.styleFrom(backgroundColor: Colors.white, foregroundColor: Colors.black),
           child: const Text('Create'),
         ),
