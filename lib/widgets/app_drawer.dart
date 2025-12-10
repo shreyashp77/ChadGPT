@@ -25,10 +25,24 @@ class _AppDrawerState extends State<AppDrawer> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : Colors.black;
+    final secondaryTextColor = isDark ? Colors.white70 : Colors.black54;
+    final searchBarColor = isDark ? const Color(0xFF1E1E1E) : Colors.grey.withValues(alpha: 0.1);
+    final iconColor = isDark ? Colors.white : Colors.black87;
+
     return Drawer(
       width: MediaQuery.of(context).size.width, // Full screen
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      child: Stack(
+      child: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onHorizontalDragEnd: (details) {
+            // Swipe Left to Close Drawer
+            if (details.primaryVelocity != null && details.primaryVelocity! < -300) {
+                Navigator.pop(context);
+            }
+        },
+        child: Stack(
         children: [
            // Main Content: History List
            Padding(
@@ -36,7 +50,7 @@ class _AppDrawerState extends State<AppDrawer> {
                child: Column(
                    crossAxisAlignment: CrossAxisAlignment.start,
                    children: [
-                       const Text('History', style: TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold)),
+                       Text('History', style: TextStyle(color: textColor, fontSize: 32, fontWeight: FontWeight.bold)),
                        const SizedBox(height: 24),
                        Expanded(
                            child: Consumer<ChatProvider>(
@@ -52,7 +66,7 @@ class _AppDrawerState extends State<AppDrawer> {
                                         return Center(
                                             child: Text(
                                                 _searchQuery.isEmpty ? 'No history' : 'No matches found', 
-                                                style: TextStyle(color: Colors.white.withValues(alpha: 0.3))
+                                                style: TextStyle(color: isDark ? Colors.white.withValues(alpha: 0.3) : Colors.black.withValues(alpha: 0.3))
                                             ),
                                         );
                                     }
@@ -65,52 +79,54 @@ class _AppDrawerState extends State<AppDrawer> {
                                             final isCurrent = chat.id == chatProvider.currentChat?.id;
                                             
                                             // Swipe Actions
-                                            return Dismissible(
-                                                key: Key(chat.id),
-                                                direction: DismissDirection.horizontal,
-                                                background: Container(
-                                                    color: Colors.blueAccent,
-                                                    alignment: Alignment.centerLeft,
-                                                    padding: const EdgeInsets.only(left: 20),
-                                                    child: const Icon(Icons.edit, color: Colors.white),
-                                                ),
-                                                secondaryBackground: Container(
-                                                    color: Colors.redAccent,
-                                                    alignment: Alignment.centerRight,
-                                                    padding: const EdgeInsets.only(right: 20),
-                                                    child: const Icon(Icons.delete, color: Colors.white),
-                                                ),
-                                                confirmDismiss: (direction) async {
-                                                    if (direction == DismissDirection.startToEnd) {
-                                                        // Swipe Right: Rename
-                                                        _showRenameDialog(context, chat.id, chat.title);
-                                                        return false; // Do not dismiss
-                                                    } else {
-                                                        // Swipe Left: Delete
-                                                        return await _confirmDelete(context, chat.id);
+                                            return Listener(
+                                                onPointerMove: (event) {
+                                                    // Allow Left Swipe to propagate to drawer close (manual override)
+                                                    if (event.delta.dx < -10) {
+                                                        Navigator.of(context).popUntil((route) => route.settings.name != 'drawer'); 
+                                                        if (Navigator.canPop(context)) {
+                                                            Navigator.pop(context);
+                                                        }
                                                     }
                                                 },
-                                                child: ListTile(
-                                                    contentPadding: const EdgeInsets.symmetric(horizontal: 16),
-                                                    title: Text(
-                                                        chat.title, 
-                                                        maxLines: 1, 
-                                                        overflow: TextOverflow.ellipsis,
-                                                        style: TextStyle(
-                                                            color: isCurrent ? Colors.white : Colors.white70,
-                                                            fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal,
-                                                            fontSize: 16,
-                                                        )
+                                                child: Dismissible(
+                                                    key: Key(chat.id),
+                                                    direction: DismissDirection.startToEnd, // Right Swipe Only
+                                                    background: Container(
+                                                        color: Colors.blueGrey,
+                                                        alignment: Alignment.centerLeft,
+                                                        padding: const EdgeInsets.only(left: 20),
+                                                        child: const Icon(Icons.more_horiz, color: Colors.white),
                                                     ),
-                                                    subtitle: Text(
-                                                        DateFormat.MMMd().format(chat.updatedAt),
-                                                        style: const TextStyle(color: Colors.white30, fontSize: 12),
-                                                    ),
-                                                    onTap: () {
-                                                        chatProvider.loadChat(chat.id);
-                                                        Navigator.pop(context);
+                                                    confirmDismiss: (direction) async {
+                                                        // Swipe Right: Show Options (Edit & Delete)
+                                                        _showSwipeOptions(context, chat.id, chat.title);
+                                                        return false; 
                                                     },
-                                                    trailing: isCurrent ? const Icon(Icons.chevron_right, color: Colors.white54, size: 16) : null,
+                                                    child: ListTile(
+                                                        contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+                                                        title: Text(
+                                                            chat.title, 
+                                                            maxLines: 1, 
+                                                            overflow: TextOverflow.ellipsis,
+                                                            style: TextStyle(
+                                                                color: isCurrent 
+                                                                    ? (isDark ? Colors.white : Theme.of(context).colorScheme.primary)
+                                                                    : secondaryTextColor,
+                                                                fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal,
+                                                                fontSize: 16,
+                                                            )
+                                                        ),
+                                                        subtitle: Text(
+                                                            DateFormat.MMMd().format(chat.updatedAt),
+                                                            style: TextStyle(color: isDark ? Colors.white30 : Colors.black38, fontSize: 12),
+                                                        ),
+                                                        onTap: () {
+                                                            chatProvider.loadChat(chat.id);
+                                                            Navigator.pop(context);
+                                                        },
+                                                        trailing: isCurrent ? Icon(Icons.chevron_right, color: isDark ? Colors.white54 : Colors.black45, size: 16) : null,
+                                                    ),
                                                 ),
                                             );
                                         },
@@ -134,26 +150,26 @@ class _AppDrawerState extends State<AppDrawer> {
                            child: Container(
                                height: 50,
                                decoration: BoxDecoration(
-                                   color: const Color(0xFF1E1E1E),
+                                   color: searchBarColor,
                                    borderRadius: BorderRadius.circular(25),
-                                   border: Border.all(color: Colors.white10),
+                                   border: Border.all(color: isDark ? Colors.white10 : Colors.black.withValues(alpha: 0.05)),
                                ),
                                padding: const EdgeInsets.symmetric(horizontal: 16),
                                child: Row(
                                    children: [
-                                       const Icon(Icons.search, color: Colors.grey),
+                                       Icon(Icons.search, color: isDark ? Colors.grey : Colors.grey[600]),
                                        const SizedBox(width: 8),
                                        Expanded(
                                            child: TextField(
                                                controller: _searchController,
-                                               decoration: const InputDecoration(
+                                               decoration: InputDecoration(
                                                    hintText: 'Search History', 
-                                                   hintStyle: TextStyle(color: Colors.grey),
+                                                   hintStyle: TextStyle(color: isDark ? Colors.grey : Colors.grey[600]),
                                                    border: InputBorder.none,
                                                    isDense: true,
                                                    contentPadding: EdgeInsets.zero,
                                                ),
-                                               style: const TextStyle(color: Colors.white),
+                                               style: TextStyle(color: textColor),
                                                onChanged: (value) {
                                                    setState(() {
                                                        _searchQuery = value;
@@ -171,12 +187,13 @@ class _AppDrawerState extends State<AppDrawer> {
                        Container(
                            height: 50,
                            width: 50,
-                           decoration: const BoxDecoration(
+                           decoration: BoxDecoration(
                                shape: BoxShape.circle,
-                               color: Color(0xFF1E1E1E),
+                               color: searchBarColor,
+                               border: Border.all(color: isDark ? Colors.white10 : Colors.black.withValues(alpha: 0.05)),
                            ),
                            child: IconButton(
-                               icon: const Icon(Icons.settings, color: Colors.white),
+                               icon: Icon(Icons.settings, color: iconColor),
                                onPressed: () {
                                    Navigator.pop(context);
                                    Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen()));
@@ -214,18 +231,57 @@ class _AppDrawerState extends State<AppDrawer> {
                ),
            ),
            
-           // Close Button (Top Right) - Optional but good for full screen drawer
+           // Close Button (Top Right)
            Positioned(
                top: MediaQuery.of(context).padding.top + 8,
                right: 8,
                child: IconButton(
-                   icon: const Icon(Icons.close, color: Colors.white54),
+                   icon: Icon(Icons.close, color: isDark ? Colors.white54 : Colors.black45),
                    onPressed: () => Navigator.pop(context),
                ),
            ),
         ],
       ),
+      ),
     );
+  }
+
+  void _showSwipeOptions(BuildContext context, String chatId, String currentTitle) {
+      showModalBottomSheet(
+          context: context,
+          backgroundColor: const Color(0xFF1E1E1E),
+          shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+          builder: (ctx) => SafeArea(
+              child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                      Container(
+                          margin: const EdgeInsets.symmetric(vertical: 8),
+                          width: 40,
+                          height: 4,
+                          decoration: BoxDecoration(color: Colors.grey[700], borderRadius: BorderRadius.circular(2)),
+                      ),
+                      ListTile(
+                          leading: const Icon(Icons.edit, color: Colors.blueAccent),
+                          title: const Text('Rename Chat', style: TextStyle(color: Colors.white)),
+                          onTap: () {
+                              Navigator.pop(ctx);
+                              _showRenameDialog(context, chatId, currentTitle);
+                          },
+                      ),
+                      ListTile(
+                          leading: const Icon(Icons.delete, color: Colors.redAccent),
+                          title: const Text('Delete Chat', style: TextStyle(color: Colors.redAccent)),
+                          onTap: () {
+                              Navigator.pop(ctx);
+                              _confirmDelete(context, chatId);
+                          },
+                      ),
+                      const SizedBox(height: 16),
+                  ],
+              ),
+          ),
+      );
   }
 
   void _showRenameDialog(BuildContext context, String chatId, String currentTitle) {
