@@ -375,6 +375,38 @@ class ChatProvider with ChangeNotifier {
       await _dbService.insertMessage(userMsg, false);
     }
 
+    await _generateAssistantResponse(content, useWebSearch: useWebSearch);
+  }
+
+  Future<void> regenerateLastResponse() async {
+      if (_currentChat == null || _currentChat!.messages.isEmpty) return;
+      
+      final lastMsg = _currentChat!.messages.last;
+      if (lastMsg.role != MessageRole.assistant) return;
+      
+      try {
+          // Remove last message
+          _currentChat!.messages.removeLast();
+          if (!_isTempMode) {
+              await _dbService.deleteMessage(lastMsg.id);
+          }
+          notifyListeners();
+          
+          // Get User Content from preceding message
+          if (_currentChat!.messages.isEmpty) return;
+          final userMsg = _currentChat!.messages.last;
+          
+          // Use current setting
+          final useWebSearch = _settingsProvider.settings.useWebSearch;
+          
+          await _generateAssistantResponse(userMsg.content, useWebSearch: useWebSearch);
+      } catch (e) {
+          print("Error regenerating: $e");
+      }
+  }
+
+  Future<void> _generateAssistantResponse(String userPrompt, {bool useWebSearch = false}) async {
+    _abortGeneration = false; // Reset abort flag
     _isTyping = true;
     notifyListeners();
 
@@ -395,9 +427,7 @@ class ChatProvider with ChangeNotifier {
       // Check for web search
       List<String>? searchResults;
       if (useWebSearch) {
-          // Notify parsing search... (Maybe add a system message or a state indicator?)
-          // For now simple blocking wait
-          searchResults = await _settingsProvider.apiService.searchWeb(content);
+          searchResults = await _settingsProvider.apiService.searchWeb(userPrompt);
       }
       
       if (_abortGeneration) return;
@@ -413,8 +443,6 @@ class ChatProvider with ChangeNotifier {
       
       // Streaming TTS Buffer
       String sentenceBuffer = "";
-      // Match punctuation followed by whitespace, OR newlines. 
-      // Removed anchors ($) to find matches within the text.
       final sentenceTerminator = RegExp(r'(?:[.?!]\s+|\n+)'); 
 
       int lastHapticTime = 0; // Timestamp for throttling

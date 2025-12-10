@@ -173,6 +173,19 @@ class MessageBubble extends StatelessWidget {
                                             );
                                     }
                                 ),
+                                if (!chatProvider.isTyping && 
+                                    (chatProvider.currentChat?.messages.isNotEmpty ?? false) && 
+                                    chatProvider.currentChat!.messages.last.id == message.id) ...[
+                                    const SizedBox(width: 12),
+                                    _buildActionButton(
+                                        context,
+                                        icon: Icons.refresh,
+                                        onTap: () {
+                                            HapticFeedback.lightImpact();
+                                            chatProvider.regenerateLastResponse();
+                                        }
+                                    ),
+                                ]
                             ],
                         ),
                     ),

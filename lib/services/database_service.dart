@@ -144,4 +144,13 @@ class DatabaseService {
       WHERE id = ?
     ''', [message.timestamp.toIso8601String(), message.chatId]);
   }
+
+  Future<void> deleteMessage(String id) async {
+    final db = await database;
+    await db.delete(
+      AppConstants.tableNameMessages,
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
 }
