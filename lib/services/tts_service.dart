@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter_tts/flutter_tts.dart';
 
 class TtsService {
@@ -8,6 +9,7 @@ class TtsService {
 
   // Callback for state changes
   Function(bool isPlaying)? onStateChanged;
+  VoidCallback? onCompletion;
 
   TtsService() {
     _initTts();
@@ -27,6 +29,7 @@ class TtsService {
     _flutterTts.setCompletionHandler(() {
       _isPlaying = false;
       onStateChanged?.call(false);
+      onCompletion?.call();
     });
 
     _flutterTts.setCancelHandler(() {

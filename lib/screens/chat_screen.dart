@@ -12,6 +12,7 @@ import '../utils/theme.dart';
 import '../widgets/message_bubble.dart';
 import '../widgets/app_drawer.dart';
 import '../widgets/create_persona_dialog.dart';
+import '../widgets/voice_mode_overlay.dart';
 
 class ChatScreen extends StatefulWidget {
   const ChatScreen({super.key});
@@ -139,6 +140,21 @@ class _ChatScreenState extends State<ChatScreen> {
                         chat.toggleTempMode();
                     },
                 ),
+            ),
+            IconButton(
+                icon: const Icon(Icons.headphones, color: Colors.white70),
+                tooltip: 'Voice Mode',
+                onPressed: () {
+                     HapticFeedback.mediumImpact();
+                     context.read<ChatProvider>().toggleContinuousVoiceMode();
+                     Navigator.of(context).push(PageRouteBuilder(
+                         opaque: false,
+                         pageBuilder: (_, __, ___) => const VoiceModeOverlay(),
+                         transitionsBuilder: (_, anim, __, child) {
+                             return FadeTransition(opacity: anim, child: child);
+                         }
+                     ));
+                },
             ),
         ],
         flexibleSpace: ClipRRect(

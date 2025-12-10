@@ -41,6 +41,9 @@ class ChatProvider with ChangeNotifier {
   bool get isTtsPlaying => _ttsService.isPlaying;
   TtsService get ttsService => _ttsService;
 
+  bool _isContinuousVoiceMode = false;
+  bool get isContinuousVoiceMode => _isContinuousVoiceMode;
+
   ChatProvider(this._settingsProvider) {
     _loadChats();
     _loadCustomPersonas();
@@ -48,6 +51,25 @@ class ChatProvider with ChangeNotifier {
     // Listen to TTS state changes
     _ttsService.onStateChanged = (isPlaying) {
         notifyListeners();
+    };
+
+    // Auto-restart listening after TTS finishes in Continuous Mode
+    _ttsService.onCompletion = () {
+       if (_isContinuousVoiceMode && !_isListening && !_isTyping) {
+           // Small delay to ensure natural pause
+           Future.delayed(const Duration(milliseconds: 500), () {
+               if (_isContinuousVoiceMode && !_isListening && !_isTyping) {
+                   startListening(
+                       (text) {
+                           if (text.trim().isNotEmpty) {
+                               sendMessage(text); // Auto-send in continuous mode
+                           }
+                       },
+                       waitForFinal: true
+                   );
+               }
+           });
+       }
     };
   }
 
@@ -64,11 +86,41 @@ class ChatProvider with ChangeNotifier {
              _isListening = false;
              notifyListeners();
              print('STT Error: $error');
+             // If error in continuous mode (e.g. no speech), maybe we should just stop mode or retry?
+             // For now, let's stop mode to avoid infinite error loops.
+             if (_isContinuousVoiceMode) {
+                 stopContinuousVoiceMode();
+             }
         },
       );
   }
 
-  Future<void> startListening(Function(String) onResult) async {
+  void toggleContinuousVoiceMode() {
+      if (_isContinuousVoiceMode) {
+          stopContinuousVoiceMode();
+      } else {
+          _isContinuousVoiceMode = true;
+          // Start the loop
+          startListening(
+              (text) {
+                  if (text.trim().isNotEmpty) {
+                      sendMessage(text);
+                  }
+              },
+              waitForFinal: true
+          );
+          notifyListeners();
+      }
+  }
+
+  void stopContinuousVoiceMode() {
+      _isContinuousVoiceMode = false;
+      stopListening();
+      stopSpeaking();
+      notifyListeners();
+  }
+
+  Future<void> startListening(Function(String) onResult, {bool waitForFinal = false}) async { // Updated signature
        if (!_speech.isAvailable) {
            bool available = await initializeStt();
            if (!available) return;
@@ -79,6 +131,9 @@ class ChatProvider with ChangeNotifier {
 
        _speech.listen(
            onResult: (result) {
+               // If expecting final result, ignore partials
+               if (waitForFinal && !result.finalResult) return;
+               
                onResult(result.recognizedWords);
            },
            listenFor: const Duration(seconds: 30),
@@ -352,6 +407,11 @@ class ChatProvider with ChangeNotifier {
       // Save assistant message to DB
       if (!_isTempMode) {
          await _dbService.insertMessage(_currentChat!.messages.last, false);
+      }
+
+      // Voice Mode: Auto-Speak Response
+      if (_isContinuousVoiceMode) {
+          await speakMessage(fullResponse);
       }
 
     } catch (e) {
