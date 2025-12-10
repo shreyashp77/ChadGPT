@@ -28,12 +28,16 @@ class ChadGPTApp extends StatelessWidget {
       ],
       child: Consumer<SettingsProvider>(
         builder: (context, settings, _) {
+          final seedColor = settings.settings.themeColor != null 
+              ? Color(settings.settings.themeColor!) 
+              : AppTheme.presetColors.first;
+
           return MaterialApp(
             title: 'ChadGPT',
             debugShowCheckedModeBanner: false,
             themeMode: settings.settings.isDarkMode ? ThemeMode.dark : ThemeMode.light,
-            theme: AppTheme.lightTheme,
-            darkTheme: AppTheme.darkTheme,
+            theme: AppTheme.getLightTheme(seedColor),
+            darkTheme: AppTheme.getDarkTheme(seedColor),
             home: ChatScreen(),
             routes: {
               '/settings': (context) => const SettingsScreen(),

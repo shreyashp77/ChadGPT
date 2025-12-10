@@ -133,12 +133,15 @@ class _ChatScreenState extends State<ChatScreen> {
           ),
           
           // Floating Input Area
-          Align(
-            alignment: Alignment.bottomCenter,
-            child: Container(
-              margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(30),
+          SafeArea(
+            left: false, 
+            right: false,
+            child: Align(
+              alignment: Alignment.bottomCenter,
+              child: Container(
+                margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(30),
                 child: BackdropFilter(
                   filter: ui.ImageFilter.blur(sigmaX: 10, sigmaY: 10),
                   child: Container(
@@ -155,25 +158,26 @@ class _ChatScreenState extends State<ChatScreen> {
                            )
                       ]
                     ),
-                    child: SafeArea(
-                      top: false,
-                      child: Column(
+                    child: Column(
                         mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                           // Attachments Preview within the glass pill
+                           // Attachments Preview
                            if (_pendingAttachmentPath != null)
                              Container(
-                                 margin: const EdgeInsets.only(bottom: 8),
+                                 margin: const EdgeInsets.only(bottom: 8, left: 16, right: 16),
                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                                  decoration: BoxDecoration(
                                     color: Colors.black.withValues(alpha: 0.05),
                                     borderRadius: BorderRadius.circular(20),
                                  ),
                                  child: Row(
+                                     mainAxisSize: MainAxisSize.min,
                                      children: [
                                          const Icon(Icons.attach_file, size: 16),
                                          const SizedBox(width: 8),
-                                         Expanded(child: Text(_pendingAttachmentPath!.split('/').last, maxLines: 1)),
+                                         Flexible(child: Text(_pendingAttachmentPath!.split('/').last, maxLines: 1, overflow: TextOverflow.ellipsis)),
+                                         const SizedBox(width: 8),
                                          InkWell(
                                              onTap: () => setState(() {
                                                  _pendingAttachmentPath = null;
@@ -185,90 +189,135 @@ class _ChatScreenState extends State<ChatScreen> {
                                  )
                              ),
 
-                           Row(
-                              children: [
-                                IconButton(
-                                  icon: const Icon(Icons.add_circle_outline, color: AppTheme.primaryLight),
-                                  onPressed: _showAttachmentOptions, 
-                                ),
-                                IconButton(
-                                  icon: Icon(Icons.public, color: _useWebSearch ? AppTheme.accent : Colors.grey),
-                                  tooltip: 'Search Web',
-                                  onPressed: () {
-                                     setState(() {
-                                         _useWebSearch = !_useWebSearch;
-                                     });
-                                  }, 
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: TextField(
-                                    controller: _textController,
-                                    style: const TextStyle(fontSize: 16),
-                                    decoration: InputDecoration(
-                                      hintText: _useWebSearch ? 'Search & Chat...' : 'Type a message...',
-                                      border: InputBorder.none,
-                                      contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10), // Vertically centered
-                                      isDense: true,
-                                    ),
-                                    maxLines: null, // Allow multiline expansion
-                                    keyboardType: TextInputType.multiline,
-                                    textCapitalization: TextCapitalization.sentences,
-                                  ),
-                                ),
-                                Container(
-                                    margin: const EdgeInsets.only(left: 4),
-                                    decoration: const BoxDecoration(
-                                        shape: BoxShape.circle,
-                                        gradient: AppTheme.primaryGradient,
-                                    ),
-                                    child: IconButton(
-                                      color: Colors.white,
-                                      icon: _pendingAttachmentPath == null && _textController.text.isEmpty && chatProvider.isTyping
-                                           ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                                           : const Icon(Icons.arrow_upward, size: 20),
-                                      onPressed: chatProvider.isTyping ? null : () async {
-                                          if (_textController.text.trim().isNotEmpty || _pendingAttachmentPath != null) {
-                                              final text = _textController.text;
-                                              final path = _pendingAttachmentPath;
-                                              final type = _pendingAttachmentType;
-                                              final useSearch = _useWebSearch;
-                                              
-                                              _textController.clear();
-                                              setState(() {
-                                                  _pendingAttachmentPath = null;
-                                                  _pendingAttachmentType = null;
-                                                  _useWebSearch = false; 
-                                              });
-                  
-                                              try {
-                                                await chatProvider.sendMessage(
-                                                  text, 
-                                                  attachmentPath: path, 
-                                                  attachmentType: type,
-                                                  useWebSearch: useSearch
-                                                );
-                                                _scrollToBottom();
-                                              } catch (e) {
-                                                 if (context.mounted) {
-                                                    ScaffoldMessenger.of(context).showSnackBar(
-                                                        SnackBar(content: Text(e.toString().replaceAll('Exception: ', '')), backgroundColor: Colors.red),
-                                                    );
-                                                 }
-                                              }
-                                          }
-                                      },
-                                    ),
-                                ),
-                              ],
+                           // Top: TextField
+                           Padding(
+                             padding: const EdgeInsets.symmetric(horizontal: 16),
+                             child: TextField(
+                               controller: _textController,
+                               style: const TextStyle(fontSize: 16),
+                               decoration: const InputDecoration(
+                                 hintText: 'Ask anything',
+                                 border: InputBorder.none,
+                                 isDense: true,
+                                 contentPadding: EdgeInsets.zero,
+                               ),
+                               maxLines: null,
+                               keyboardType: TextInputType.multiline,
+                               textCapitalization: TextCapitalization.sentences,
+                             ),
+                           ),
+                           
+                           const SizedBox(height: 15),
+
+                           // Bottom: Actions Row
+                           Padding(
+                             padding: const EdgeInsets.fromLTRB(0, 0, 8, 0),
+                             child: Row(
+                               children: [
+                                 // Attachment / Menu Button
+                                 IconButton(
+                                   icon: Icon(Icons.add_circle_outline, color: Theme.of(context).colorScheme.primary),
+                                   onPressed: _showAttachmentOptions, 
+                                 ),
+                                 
+                                 const SizedBox(width: 0),
+                                 
+                                 // Grok-style Model Selector Pill
+                                 GestureDetector(
+                                     onTap: () => _showGrokModelSelector(context),
+                                     child: Container(
+                                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                         decoration: BoxDecoration(
+                                             color: Theme.of(context).brightness == Brightness.dark ? Colors.white.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.05),
+                                             borderRadius: BorderRadius.circular(20),
+                                         ),
+                                         child: Row(
+                                             mainAxisSize: MainAxisSize.min,
+                                             children: [
+                                                if (_useWebSearch) ...[
+                                                    const Icon(Icons.public, size: 14, color: AppTheme.accent),
+                                                    const SizedBox(width: 6),
+                                                ] else ...[
+                                                    Icon(Icons.auto_awesome, size: 14, color: Theme.of(context).colorScheme.primary),
+                                                    const SizedBox(width: 6),
+                                                ],
+                                                 
+                                                 ConstrainedBox(
+                                                     constraints: const BoxConstraints(maxWidth: 90),
+                                                     child: Text(
+                                                         settingsProvider.getModelDisplayName(settingsProvider.settings.selectedModelId ?? ''),
+                                                         style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.onSurface),
+                                                         maxLines: 1,
+                                                         overflow: TextOverflow.ellipsis,
+                                                     ),
+                                                 ),
+                                                 const SizedBox(width: 4),
+                                                 Icon(Icons.keyboard_arrow_down, size: 14, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5)),
+                                             ],
+                                         ),
+                                     ),
+                                 ),
+
+                                 const Spacer(),
+
+                                 // Send Button
+                                 Container(
+                                     decoration: BoxDecoration(
+                                         shape: BoxShape.circle,
+                                         gradient: AppTheme.getPrimaryGradient(Theme.of(context).colorScheme.primary),
+                                     ),
+                                     child: IconButton(
+                                       color: Colors.white,
+                                       icon: _pendingAttachmentPath == null && _textController.text.isEmpty && chatProvider.isTyping
+                                            ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                                            : const Icon(Icons.arrow_upward, size: 20),
+                                       onPressed: chatProvider.isTyping ? null : () async {
+                                           if (_textController.text.trim().isNotEmpty || _pendingAttachmentPath != null) {
+                                               final text = _textController.text;
+                                               final path = _pendingAttachmentPath;
+                                               final type = _pendingAttachmentType;
+                                               final useSearch = _useWebSearch;
+                                               
+                                               _textController.clear();
+                                               setState(() {
+                                                   _pendingAttachmentPath = null;
+                                                   _pendingAttachmentType = null;
+                                                   // Don't reset web search? Or reset it? Grok keeps context usually. 
+                                                   // Let's keep it for now, or reset if desired. 
+                                                   // Resetting for safety.
+                                                   _useWebSearch = false; 
+                                               });
+                   
+                                               try {
+                                                 await chatProvider.sendMessage(
+                                                   text, 
+                                                   attachmentPath: path, 
+                                                   attachmentType: type,
+                                                   useWebSearch: useSearch
+                                                 );
+                                                 _scrollToBottom();
+                                               } catch (e) {
+                                                  if (context.mounted) {
+                                                     ScaffoldMessenger.of(context).showSnackBar(
+                                                         SnackBar(content: Text(e.toString().replaceAll('Exception: ', '')), backgroundColor: Colors.red),
+                                                     );
+                                                  }
+                                               }
+                                           }
+                                       },
+                                     ),
+                                 ),
+                               ],
+                             ),
                            ),
                         ],
                       ),
-                    ),
+
                   ),
                 ),
               ),
             ).animate().slideY(begin: 1.0, end: 0, curve: Curves.easeOutQuad, duration: 600.ms),
+          ),
           ),
         ],
       ),
@@ -323,7 +372,143 @@ class _ChatScreenState extends State<ChatScreen> {
                       }
                   },
               ),
+              const Divider(),
+              ListTile(
+                  leading: Icon(Icons.public, color: _useWebSearch ? AppTheme.accent : null),
+                  title: Text(_useWebSearch ? 'Disable Web Search' : 'Enable Web Search'),
+                  trailing: Switch(
+                      value: _useWebSearch, 
+                      onChanged: (val) {
+                          Navigator.pop(ctx);
+                          setState(() {
+                              _useWebSearch = val;
+                          });
+                      }
+                  ),
+                  onTap: () {
+                      Navigator.pop(ctx);
+                      setState(() {
+                          _useWebSearch = !_useWebSearch;
+                      });
+                  },
+              ),
+              const SizedBox(height: 16),
           ],
       ));
+  }
+
+  void _showRenameDialog(BuildContext context, String modelId, String currentName) {
+      final controller = TextEditingController(text: currentName);
+      showDialog(
+          context: context,
+          builder: (ctx) => AlertDialog(
+              backgroundColor: const Color(0xFF1E1E1E),
+              title: const Text('Rename Model', style: TextStyle(color: Colors.white)),
+              content: TextField(
+                  controller: controller,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: const InputDecoration(
+                      hintText: 'Enter new name',
+                      hintStyle: TextStyle(color: Colors.white30),
+                      enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.white30)),
+                  ),
+                  autofocus: true,
+              ),
+              actions: [
+                  TextButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      child: const Text('Cancel', style: TextStyle(color: Colors.white70)),
+                  ),
+                  TextButton(
+                      onPressed: () {
+                          context.read<SettingsProvider>().updateModelAlias(modelId, controller.text);
+                          Navigator.pop(ctx);
+                          // Force rebuild/refresh of the selector if open? 
+                          // The selector is a modal bottom sheet built with current context. 
+                          // Since we update provider, it should rebuild if we watched it. 
+                          // But we passed 'settings' (read) to the builder. 
+                          // We might need to close and reopen the selector or make the selector a consumer.
+                          Navigator.pop(context); // Close the selector too to see the update in the pill
+                      },
+                      child: const Text('Save', style: TextStyle(color: AppTheme.accent)),
+                  ),
+              ],
+          ),
+      );
+  }
+  void _showGrokModelSelector(BuildContext context) {
+      final settings = context.read<SettingsProvider>();
+      final currentModel = settings.settings.selectedModelId;
+      
+      showModalBottomSheet(
+          context: context,
+          backgroundColor: Colors.transparent,
+          isScrollControlled: true,
+          builder: (ctx) => Container(
+              margin: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                  color: const Color(0xFF1E1E1E), // Dark background like Grok
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+                  boxShadow: [
+                      BoxShadow(color: Colors.black.withValues(alpha: 0.5), blurRadius: 20, offset: const Offset(0, 10))
+                  ]
+              ),
+              child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                      Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                                const Row(
+                                    children: [
+                                        Icon(Icons.auto_awesome, color: Colors.white, size: 20),
+                                        SizedBox(width: 8),
+                                        Text('Select Model', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                                    ],
+                                ),
+                                IconButton(icon: const Icon(Icons.refresh, color: Colors.white70), onPressed: () {
+                                    settings.fetchModels();
+                                    Navigator.pop(ctx);
+                                    _showGrokModelSelector(context); // Reopen to refresh? Or just refresh in bg. Reopening might be jarring.
+                                }),
+                            ],
+                        ),
+                      ),
+                      const Divider(color: Colors.white10, height: 1),
+                      ConstrainedBox(
+                          constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.4),
+                          child: ListView.builder(
+                              shrinkWrap: true,
+                              padding: const EdgeInsets.symmetric(vertical: 8),
+                              itemCount: settings.availableModels.length,
+                              itemBuilder: (context, index) {
+                                  final modelId = settings.availableModels[index];
+                                  final isSelected = modelId == currentModel;
+                                  final displayName = settings.getModelDisplayName(modelId);
+                                  
+                                  return ListTile(
+                                      title: Text(displayName, style: TextStyle(color: isSelected ? AppTheme.accent : Colors.white70, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
+                                      subtitle: displayName != modelId.split('/').last ? Text(modelId.split('/').last, style: TextStyle(color: Colors.white30, fontSize: 10)) : null,
+                                      leading: isSelected ? const Icon(Icons.check_circle, color: AppTheme.accent) : const Icon(Icons.circle_outlined, color: Colors.white30),
+                                      trailing: IconButton(
+                                          icon: const Icon(Icons.edit, size: 16, color: Colors.white30),
+                                          onPressed: () => _showRenameDialog(context, modelId, displayName),
+                                      ),
+                                      onTap: () {
+                                          settings.updateSettings(selectedModelId: modelId);
+                                          Navigator.pop(ctx);
+                                      },
+                                  );
+                              },
+                          ),
+                      ),
+                      const SizedBox(height: 8),
+                  ],
+              ),
+          ),
+      );
   }
 }

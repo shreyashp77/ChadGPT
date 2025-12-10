@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/app_settings.dart';
 import '../utils/constants.dart';
@@ -8,16 +9,30 @@ class SharedPrefsService {
   static const String keyIsDarkMode = 'is_dark_mode';
   static const String keySelectedModelId = 'selected_model_id';
   static const String keyUseWebSearch = 'use_web_search';
+  static const String keyThemeColor = 'theme_color';
+  static const String keyModelAliases = 'model_aliases';
 
   Future<AppSettings> getSettings() async {
     final prefs = await SharedPreferences.getInstance();
     
+    Map<String, String> aliases = {};
+    if (prefs.containsKey(keyModelAliases)) {
+        try {
+            final jsonStr = prefs.getString(keyModelAliases);
+            if (jsonStr != null) {
+                aliases = Map<String, String>.from(json.decode(jsonStr));
+            }
+        } catch (_) {}
+    }
+
     return AppSettings(
       lmStudioUrl: prefs.getString(keyLmStudioUrl) ?? AppConstants.defaultLmStudioUrl,
       searxngUrl: prefs.getString(keySearxngUrl) ?? AppConstants.defaultSearxngUrl,
       isDarkMode: prefs.getBool(keyIsDarkMode) ?? true,
       selectedModelId: prefs.getString(keySelectedModelId),
       useWebSearch: prefs.getBool(keyUseWebSearch) ?? false,
+      themeColor: prefs.getInt(keyThemeColor),
+      modelAliases: aliases,
     );
   }
 
@@ -34,5 +49,13 @@ class SharedPrefsService {
     } else {
       await prefs.remove(keySelectedModelId);
     }
+
+    if (settings.themeColor != null) {
+        await prefs.setInt(keyThemeColor, settings.themeColor!);
+    } else {
+        await prefs.remove(keyThemeColor);
+    }
+
+    await prefs.setString(keyModelAliases, json.encode(settings.modelAliases));
   }
 }

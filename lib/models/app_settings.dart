@@ -4,6 +4,8 @@ class AppSettings {
   bool isDarkMode;
   String? selectedModelId;
   bool useWebSearch;
+  int? themeColor;
+  Map<String, String> modelAliases;
 
   AppSettings({
     required this.lmStudioUrl,
@@ -11,6 +13,8 @@ class AppSettings {
     this.isDarkMode = true,
     this.selectedModelId,
     this.useWebSearch = false,
+    this.themeColor,
+    this.modelAliases = const {},
   });
 
   // Create a copyWith method
@@ -20,6 +24,8 @@ class AppSettings {
     bool? isDarkMode,
     String? selectedModelId,
     bool? useWebSearch,
+    int? themeColor,
+    Map<String, String>? modelAliases,
   }) {
     return AppSettings(
       lmStudioUrl: lmStudioUrl ?? this.lmStudioUrl,
@@ -27,6 +33,8 @@ class AppSettings {
       isDarkMode: isDarkMode ?? this.isDarkMode,
       selectedModelId: selectedModelId ?? this.selectedModelId,
       useWebSearch: useWebSearch ?? this.useWebSearch,
+      themeColor: themeColor ?? this.themeColor,
+      modelAliases: modelAliases ?? this.modelAliases,
     );
   }
 }

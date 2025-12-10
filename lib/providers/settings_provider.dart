@@ -39,6 +39,8 @@ class SettingsProvider with ChangeNotifier {
     bool? isDarkMode,
     String? selectedModelId,
     bool? useWebSearch,
+    int? themeColor,
+    Map<String, String>? modelAliases,
   }) async {
     _settings = _settings.copyWith(
       lmStudioUrl: lmStudioUrl,
@@ -46,6 +48,8 @@ class SettingsProvider with ChangeNotifier {
       isDarkMode: isDarkMode,
       selectedModelId: selectedModelId,
       useWebSearch: useWebSearch,
+      themeColor: themeColor,
+      modelAliases: modelAliases,
     );
     
     // Update API service with new settings if URLs changed
@@ -55,6 +59,20 @@ class SettingsProvider with ChangeNotifier {
     
     notifyListeners();
     await _prefsService.saveSettings(_settings);
+  }
+
+  Future<void> updateModelAlias(String modelId, String alias) async {
+      final newAliases = Map<String, String>.from(_settings.modelAliases);
+      if (alias.trim().isEmpty) {
+          newAliases.remove(modelId);
+      } else {
+          newAliases[modelId] = alias.trim();
+      }
+      await updateSettings(modelAliases: newAliases);
+  }
+
+  String getModelDisplayName(String modelId) {
+      return _settings.modelAliases[modelId] ?? modelId.split('/').last;
   }
 
   Future<void> fetchModels() async {

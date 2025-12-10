@@ -20,41 +20,72 @@ class AppTheme {
     end: Alignment.bottomRight,
   );
 
-  static final ThemeData lightTheme = ThemeData(
-    useMaterial3: true,
-    brightness: Brightness.light,
-    colorScheme: ColorScheme.fromSeed(
-      seedColor: primaryLight,
-      brightness: Brightness.light,
-      surface: const Color(0xFFF7F9FC), // Slightly cooler grey
-      secondary: accent,
-    ),
-    textTheme: GoogleFonts.outfitTextTheme(), // Modern geometric sans
-    appBarTheme: const AppBarTheme(
-      backgroundColor: Colors.transparent,
-      elevation: 0,
-      centerTitle: false,
-    ),
-  );
+  // Preset Colors
+  static const List<Color> presetColors = [
+      Color(0xFF6C63FF), // Default Purple
+      Color(0xFF00C853), // Green
+      Color(0xFF2962FF), // Blue
+      Color(0xFFFF3D00), // Orange
+      Color(0xFFFFD600), // Yellow
+      Color(0xFFE91E63), // Pink
+      Color(0xFF00BFA5), // Teal
+  ];
 
-  static final ThemeData darkTheme = ThemeData(
-    useMaterial3: true,
-    brightness: Brightness.dark,
-    colorScheme: ColorScheme.fromSeed(
-      seedColor: primaryDark,
-      brightness: Brightness.dark,
-      surface: const Color(0xFF141414),
-      onSurface: const Color(0xFFEDEDED),
-      secondary: accent,
-    ),
-    scaffoldBackgroundColor: const Color(0xFF000000), // True black for OLED
-    textTheme: GoogleFonts.outfitTextTheme(ThemeData.dark().textTheme),
-    appBarTheme: const AppBarTheme(
-      backgroundColor: Colors.transparent,
-      elevation: 0,
-      centerTitle: false,
-    ),
-  );
+  // Dynamic Gradients
+  static LinearGradient getPrimaryGradient(Color color) {
+      return LinearGradient(
+          colors: [color, HSLColor.fromColor(color).withLightness((HSLColor.fromColor(color).lightness - 0.1).clamp(0.0, 1.0)).toColor()],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+      );
+  }
+
+  static ThemeData getLightTheme(Color seedColor) {
+      return ThemeData(
+        useMaterial3: true,
+        brightness: Brightness.light,
+        scaffoldBackgroundColor: const Color(0xFFF7F9FC),
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: seedColor,
+          brightness: Brightness.light,
+          primary: seedColor, // Force vibrant
+          secondary: seedColor,
+          surface: const Color(0xFFF7F9FC),
+          onSurface: const Color(0xFF1A1C1E),
+        ),
+        textTheme: GoogleFonts.outfitTextTheme(ThemeData.light().textTheme),
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          centerTitle: false,
+          scrolledUnderElevation: 0,
+        ),
+      );
+  }
+
+  static ThemeData getDarkTheme(Color seedColor) {
+      return ThemeData(
+        useMaterial3: true,
+        brightness: Brightness.dark,
+        scaffoldBackgroundColor: const Color(0xFF000000), // True black
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: seedColor,
+          brightness: Brightness.dark,
+          primary: seedColor, // Force vibrant
+          secondary: seedColor,
+          surface: const Color(0xFF141414),
+          onSurface: const Color(0xFFEDEDED),
+          surfaceContainer: const Color(0xFF1E1E1E), // For Cards/Sheets
+        ),
+        textTheme: GoogleFonts.outfitTextTheme(ThemeData.dark().textTheme),
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          centerTitle: false,
+          scrolledUnderElevation: 0,
+        ),
+      );
+  }
   
   // Glassmorphism
   static BoxDecoration glassDecoration(BuildContext context) {
