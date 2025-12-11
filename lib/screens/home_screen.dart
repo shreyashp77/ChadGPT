@@ -6,6 +6,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import '../providers/chat_provider.dart';
 import 'chat_screen.dart';
 import '../utils/theme.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -176,9 +177,9 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                                     const SizedBox(width: 16),
                                     FloatingActionButton.small(
                                         heroTag: 'temp_chat',
-                                        backgroundColor: Colors.orangeAccent,
+                                        backgroundColor: const Color(0xFF202124), // Chrome Incognito Dark
                                         onPressed: () { _toggleMenu(); _handleNewChat(context, isTemp: true); },
-                                        child: const Icon(Icons.history_toggle_off, color: Colors.white),
+                                        child: FaIcon(FontAwesomeIcons.userSecret, color: Colors.white, size: 18),
                                     ).animate().scale().fade(),
                                 ],
                             ),
@@ -196,7 +197,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                                         heroTag: 'new_chat',
                                         backgroundColor: AppTheme.accent,
                                         onPressed: () { _toggleMenu(); _handleNewChat(context, isTemp: false); },
-                                        child: const Icon(Icons.add, color: Colors.white),
+                                        child: const Icon(Icons.edit_square, color: Colors.white),
                                     ).animate().scale().fade(),
                                 ],
                             ),

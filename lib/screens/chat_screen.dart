@@ -14,6 +14,8 @@ import '../widgets/app_drawer.dart';
 import '../widgets/create_persona_dialog.dart';
 import '../widgets/voice_mode_overlay.dart';
 
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+
 class ChatScreen extends StatefulWidget {
   const ChatScreen({super.key});
 
@@ -134,9 +136,10 @@ class _ChatScreenState extends State<ChatScreen> {
             ),
             Consumer<ChatProvider>(
                 builder: (context, chat, _) => IconButton(
-                    icon: Icon(chat.isTempMode ? Icons.history : Icons.visibility_off, 
-                        color: chat.isTempMode ? Colors.white : Colors.white70),
-                    tooltip: chat.isTempMode ? 'Turn off Incognito' : 'Turn on Incognito',
+                    icon: chat.isTempMode 
+                      ? const Icon(Icons.edit_square, color: Colors.white)
+                      : FaIcon(FontAwesomeIcons.userSecret, color: Colors.white70, size: 20),
+                    tooltip: chat.isTempMode ? 'New Normal Chat' : 'Go Incognito',
                     onPressed: () {
                         HapticFeedback.lightImpact(); // Haptic
                         chat.toggleTempMode();

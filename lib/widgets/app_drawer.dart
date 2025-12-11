@@ -218,7 +218,7 @@ class _AppDrawerState extends State<AppDrawer> {
                                ],
                            ),
                            child: IconButton(
-                               icon: const Icon(Icons.create, color: Colors.white, size: 22),
+                               icon: const Icon(Icons.edit_square, color: Colors.white, size: 22),
                                onPressed: () {
                                    Navigator.pop(context);
                                    final chatProvider = context.read<ChatProvider>();
