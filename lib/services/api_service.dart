@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 import 'package:http/http.dart' as http;
 import '../models/app_settings.dart';
 import '../models/message.dart';
@@ -149,6 +150,8 @@ class ApiService {
       'model': modelId,
       'messages': apiMessages,
       'stream': true,
+      'temperature': 0.7, 
+      'seed': Random().nextInt(1000000), // Force variation
     });
 
     final client = http.Client();
