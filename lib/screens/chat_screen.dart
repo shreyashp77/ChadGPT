@@ -26,6 +26,7 @@ class ChatScreen extends StatefulWidget {
 class _ChatScreenState extends State<ChatScreen> {
   final TextEditingController _textController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
+  final GlobalKey _actionButtonKey = GlobalKey(); // Key for the action button
   String? _pendingAttachmentPath;
   String? _pendingAttachmentType; // 'image' or 'file'
   bool _showScrollDownButton = false; // State to toggle visibility of scroll button
@@ -339,80 +340,72 @@ class _ChatScreenState extends State<ChatScreen> {
 
                                  const Spacer(),
 
-                                 // Send / Mic Button (Now on Left, Standard Icon)
-                                 IconButton(
-                                     color: Colors.white,
-                                     icon: chatProvider.isTyping 
-                                         ? const Icon(Icons.stop, size: 24)
-                                         : chatProvider.isListening
-                                             ? const Icon(Icons.mic_off, size: 24).animate(onPlay: (controller) => controller.repeat(reverse: true)).fade(duration: 500.ms, begin: 0.5, end: 1.0)
-                                             : (_textController.text.trim().isNotEmpty || _pendingAttachmentPath != null)
-                                                 ? const Icon(Icons.arrow_upward, size: 24)
-                                                 : const Icon(Icons.mic, size: 24),
-                                     onPressed: () {
-                                         HapticFeedback.lightImpact(); // Haptic
+                                 // Action Button: Handles Voice/STT (Default), Sending (HasContent), or Stopping (Generating/Listening)
+                                 Builder(
+                                     builder: (context) {
+                                         final hasContent = _textController.text.trim().isNotEmpty || _pendingAttachmentPath != null;
+                                         final isGenerating = chatProvider.isTyping;
+                                         final isListening = chatProvider.isListening;
                                          
-                                         // 1. Stop Generation
-                                         if (chatProvider.isTyping) {
-                                             chatProvider.stopGeneration();
-                                             return;
-                                         }
+                                         // Determine State
+                                         // 1. Generating -> Stop Generation
+                                         // 2. Listening -> Stop Listening
+                                         // 3. Content -> Send Message
+                                         // 4. Empty -> Show Voice Options
                                          
-                                         // 2. Stop Listening
-                                         if (chatProvider.isListening) {
-                                             chatProvider.stopListening();
-                                             return;
+                                         IconData icon;
+                                         String tooltip;
+                                         VoidCallback onPressed;
+                                         
+                                         if (isGenerating) {
+                                             icon = Icons.stop;
+                                             tooltip = 'Stop Generating';
+                                             onPressed = () {
+                                                 HapticFeedback.lightImpact();
+                                                 chatProvider.stopGeneration();
+                                             };
+                                         } else if (isListening) {
+                                             icon = Icons.mic_off;
+                                             tooltip = 'Stop Listening';
+                                             onPressed = () {
+                                                 HapticFeedback.lightImpact();
+                                                 chatProvider.stopListening();
+                                             };
+                                         } else if (hasContent) {
+                                             icon = Icons.arrow_upward;
+                                             tooltip = 'Send Message';
+                                             onPressed = () {
+                                                 HapticFeedback.lightImpact();
+                                                 _sendMessage();
+                                             };
+                                         } else {
+                                             icon = Icons.graphic_eq;
+                                             tooltip = 'Voice Options';
+                                             onPressed = () => _showVoiceOptions(context);
                                          }
 
-                                         // 3. Send Message
-                                         if (_textController.text.trim().isNotEmpty || _pendingAttachmentPath != null) {
-                                             _sendMessage();
-                                             return;
-                                         }
-
-                                         // 4. Start Listening
-                                         final currentText = _textController.text;
-                                         chatProvider.startListening((result) {
-                                             if (mounted) {
-                                                 setState(() {
-                                                     _textController.text = (currentText + (currentText.isNotEmpty && !currentText.endsWith(' ') ? ' ' : '') + result);
-                                                     _textController.selection = TextSelection.fromPosition(TextPosition(offset: _textController.text.length));
-                                                 });
-                                             }
-                                         });
-                                     },
-                                 ),
-
-                                 const SizedBox(width: 8),
-
-                                 // Voice Mode Button (Now on Right, with Gradient Background)
-                                 Container(
-                                     decoration: BoxDecoration(
-                                         shape: BoxShape.circle,
-                                         gradient: AppTheme.getPrimaryGradient(Theme.of(context).colorScheme.primary),
-                                         boxShadow: [
-                                             BoxShadow(
-                                                 color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.5), 
-                                                 blurRadius: 10, 
-                                                 spreadRadius: 2
-                                             )
-                                         ]
-                                     ),
-                                     child: IconButton(
-                                         icon: const Icon(Icons.headphones, color: Colors.white),
-                                         tooltip: 'Voice Mode',
-                                         onPressed: () {
-                                              HapticFeedback.mediumImpact();
-                                              context.read<ChatProvider>().toggleContinuousVoiceMode();
-                                              Navigator.of(context).push(PageRouteBuilder(
-                                                  opaque: false,
-                                                  pageBuilder: (_, __, ___) => const VoiceModeOverlay(),
-                                                  transitionsBuilder: (_, anim, __, child) {
-                                                      return FadeTransition(opacity: anim, child: child);
-                                                  }
-                                              ));
-                                         },
-                                     ),
+                                         return Container(
+                                             key: _actionButtonKey, // Attach Key Here
+                                             decoration: BoxDecoration(
+                                                 shape: BoxShape.circle,
+                                                 color: Theme.of(context).colorScheme.primary, // Solid Primary Color
+                                                 boxShadow: [
+                                                     BoxShadow(
+                                                         color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.5), 
+                                                         blurRadius: 10, 
+                                                         spreadRadius: 2
+                                                     )
+                                                 ]
+                                             ),
+                                             child: IconButton(
+                                                 icon: isListening 
+                                                    ? Icon(icon, color: Colors.white, size: 24).animate(onPlay: (controller) => controller.repeat(reverse: true)).fade(duration: 500.ms, begin: 0.5, end: 1.0)
+                                                    : Icon(icon, color: Colors.white, size: 24),
+                                                 tooltip: tooltip,
+                                                 onPressed: onPressed,
+                                             ),
+                                         );
+                                     }
                                  ),
                                   ],
                              ),
@@ -717,6 +710,137 @@ class _ChatScreenState extends State<ChatScreen> {
               },
           ),
       );
+  }
+
+  void _showVoiceOptions(BuildContext context) {
+      final renderBox = _actionButtonKey.currentContext?.findRenderObject() as RenderBox?;
+      if (renderBox == null) return;
+      
+      final buttonPosition = renderBox.localToGlobal(Offset.zero);
+      final size = renderBox.size;
+      final screenWidth = MediaQuery.of(context).size.width;
+      
+      // Calculate distance from the right edge of the screen
+      final rightOffset = screenWidth - (buttonPosition.dx + size.width);
+
+      Navigator.of(context).push(PageRouteBuilder(
+          opaque: false,
+          barrierDismissible: true,
+          barrierColor: Colors.transparent,
+          pageBuilder: (context, animation, secondaryAnimation) {
+               return Stack(
+                   children: [
+                       // Backdrop
+                       Positioned.fill(
+                           child: GestureDetector(
+                               onTap: () => Navigator.pop(context),
+                               behavior: HitTestBehavior.translucent,
+                               child: Container(color: Colors.transparent),
+                           ),
+                       ),
+                       // Floating Options
+                       Positioned(
+                           right: rightOffset, 
+                           bottom: MediaQuery.of(context).size.height - buttonPosition.dy + 16, 
+                           child: Material(
+                               type: MaterialType.transparency,
+                               child: Column(
+                                   mainAxisSize: MainAxisSize.min,
+                                   crossAxisAlignment: CrossAxisAlignment.end, 
+                                   children: [
+                                       // Voice Mode Option
+                                       _buildFloatingOption(
+                                           context,
+                                           icon: Icons.headphones,
+                                           label: 'Voice Mode',
+                                           bgColor: Theme.of(context).colorScheme.primary, 
+                                           iconColor: Colors.white,
+                                           onTap: () {
+                                               Navigator.pop(context);
+                                               HapticFeedback.mediumImpact();
+                                               context.read<ChatProvider>().toggleContinuousVoiceMode();
+                                               Navigator.of(context).push(PageRouteBuilder(
+                                                   opaque: false,
+                                                   pageBuilder: (_, __, ___) => const VoiceModeOverlay(),
+                                                   transitionsBuilder: (_, anim, __, child) {
+                                                       return FadeTransition(opacity: anim, child: child);
+                                                   }
+                                               ));
+                                           }
+                                       ).animate().slideY(begin: 0.5, end: 0, duration: 200.ms).fadeIn(),
+                                       
+                                       const SizedBox(height: 12),
+
+                                       // Dictation Option
+                                       _buildFloatingOption(
+                                           context,
+                                           icon: Icons.mic, // Standard Mic
+                                           label: 'Dictation',
+                                           bgColor: Theme.of(context).colorScheme.primary, // Theme Color (Blue)
+                                           iconColor: Colors.white, // White Icon
+                                           onTap: () {
+                                                Navigator.pop(context);
+                                                HapticFeedback.lightImpact();
+                                                final chatProvider = context.read<ChatProvider>();
+                                                final currentText = _textController.text;
+                                                chatProvider.startListening((result) {
+                                                    if (mounted) {
+                                                        setState(() {
+                                                            _textController.text = (currentText + (currentText.isNotEmpty && !currentText.endsWith(' ') ? ' ' : '') + result);
+                                                            _textController.selection = TextSelection.fromPosition(TextPosition(offset: _textController.text.length));
+                                                        });
+                                                    }
+                                                });
+                                           }
+                                       ).animate().slideY(begin: 0.5, end: 0, duration: 200.ms, delay: 50.ms).fadeIn(),
+                                   ],
+                               ),
+                           ),
+                       ),
+                   ],
+               );
+          },
+      ));
+  }
+  
+  Widget _buildFloatingOption(BuildContext context, {required IconData icon, required String label, required VoidCallback onTap, required Color bgColor, required Color iconColor}) {
+       return Row(
+           mainAxisAlignment: MainAxisAlignment.end, 
+           mainAxisSize: MainAxisSize.min, 
+           children: [
+              // Label Pill
+              Container(
+                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                 decoration: BoxDecoration(
+                     color: const Color(0xFF1E1E1E).withValues(alpha: 0.8), // Dark blurred look
+                     borderRadius: BorderRadius.circular(20),
+                     border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+                     boxShadow: [
+                         BoxShadow(color: Colors.black.withValues(alpha: 0.2), blurRadius: 8, offset: const Offset(0, 2))
+                     ]
+                 ),
+                 child: Text(label, style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600)),
+              ),
+              const SizedBox(width: 12),
+              
+              // Mini Action Button
+              GestureDetector(
+                onTap: onTap,
+                child: Container(
+                     width: 48,
+                     height: 48,
+                     decoration: BoxDecoration(
+                         color: bgColor, 
+                         shape: BoxShape.circle,
+                         boxShadow: [
+                             BoxShadow(color: Colors.black.withValues(alpha: 0.3), blurRadius: 8, offset: const Offset(0, 4))
+                         ]
+                     ),
+                     child: Icon(icon, color: iconColor, size: 22),
+                ),
+              ),
+           ],
+       );
   }
 
   Future<void> _sendMessage() async {
