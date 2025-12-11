@@ -339,77 +339,81 @@ class _ChatScreenState extends State<ChatScreen> {
 
                                  const Spacer(),
 
+                                 // Send / Mic Button (Now on Left, Standard Icon)
                                  IconButton(
-                                     icon: const Icon(Icons.headphones, color: Colors.grey),
-                                     tooltip: 'Voice Mode',
+                                     color: Colors.white,
+                                     icon: chatProvider.isTyping 
+                                         ? const Icon(Icons.stop, size: 24)
+                                         : chatProvider.isListening
+                                             ? const Icon(Icons.mic_off, size: 24).animate(onPlay: (controller) => controller.repeat(reverse: true)).fade(duration: 500.ms, begin: 0.5, end: 1.0)
+                                             : (_textController.text.trim().isNotEmpty || _pendingAttachmentPath != null)
+                                                 ? const Icon(Icons.arrow_upward, size: 24)
+                                                 : const Icon(Icons.mic, size: 24),
                                      onPressed: () {
-                                          HapticFeedback.mediumImpact();
-                                          context.read<ChatProvider>().toggleContinuousVoiceMode();
-                                          Navigator.of(context).push(PageRouteBuilder(
-                                              opaque: false,
-                                              pageBuilder: (_, __, ___) => const VoiceModeOverlay(),
-                                              transitionsBuilder: (_, anim, __, child) {
-                                                  return FadeTransition(opacity: anim, child: child);
-                                              }
-                                          ));
+                                         HapticFeedback.lightImpact(); // Haptic
+                                         
+                                         // 1. Stop Generation
+                                         if (chatProvider.isTyping) {
+                                             chatProvider.stopGeneration();
+                                             return;
+                                         }
+                                         
+                                         // 2. Stop Listening
+                                         if (chatProvider.isListening) {
+                                             chatProvider.stopListening();
+                                             return;
+                                         }
+
+                                         // 3. Send Message
+                                         if (_textController.text.trim().isNotEmpty || _pendingAttachmentPath != null) {
+                                             _sendMessage();
+                                             return;
+                                         }
+
+                                         // 4. Start Listening
+                                         final currentText = _textController.text;
+                                         chatProvider.startListening((result) {
+                                             if (mounted) {
+                                                 setState(() {
+                                                     _textController.text = (currentText + (currentText.isNotEmpty && !currentText.endsWith(' ') ? ' ' : '') + result);
+                                                     _textController.selection = TextSelection.fromPosition(TextPosition(offset: _textController.text.length));
+                                                 });
+                                             }
+                                         });
                                      },
                                  ),
+
                                  const SizedBox(width: 8),
 
-                                 // Send / Mic Button
+                                 // Voice Mode Button (Now on Right, with Gradient Background)
                                  Container(
                                      decoration: BoxDecoration(
                                          shape: BoxShape.circle,
                                          gradient: AppTheme.getPrimaryGradient(Theme.of(context).colorScheme.primary),
-                                         boxShadow: chatProvider.isListening 
-                                            ? [BoxShadow(color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.5), blurRadius: 10, spreadRadius: 2)]
-                                            : null
+                                         boxShadow: [
+                                             BoxShadow(
+                                                 color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.5), 
+                                                 blurRadius: 10, 
+                                                 spreadRadius: 2
+                                             )
+                                         ]
                                      ),
-                                      child: IconButton(
-                                        color: Colors.white,
-                                        icon: chatProvider.isTyping 
-                                            ? const Icon(Icons.stop, size: 20)
-                                            : chatProvider.isListening
-                                                ? const Icon(Icons.mic_off, size: 20).animate(onPlay: (controller) => controller.repeat(reverse: true)).fade(duration: 500.ms, begin: 0.5, end: 1.0)
-                                                : (_textController.text.trim().isNotEmpty || _pendingAttachmentPath != null)
-                                                    ? const Icon(Icons.arrow_upward, size: 20)
-                                                    : const Icon(Icons.mic, size: 20),
-                                        onPressed: () {
-                                            HapticFeedback.lightImpact(); // Haptic
-                                            
-                                            // 1. Stop Generation
-                                            if (chatProvider.isTyping) {
-                                                chatProvider.stopGeneration();
-                                                return;
-                                            }
-                                            
-                                            // 2. Stop Listening
-                                            if (chatProvider.isListening) {
-                                                chatProvider.stopListening();
-                                                return;
-                                            }
-
-                                            // 3. Send Message
-                                            if (_textController.text.trim().isNotEmpty || _pendingAttachmentPath != null) {
-                                                _sendMessage();
-                                                return;
-                                            }
-
-                                            // 4. Start Listening
-                                            // Store current text to append to it
-                                            final currentText = _textController.text;
-                                            chatProvider.startListening((result) {
-                                                if (mounted) {
-                                                    setState(() {
-                                                        _textController.text = (currentText + (currentText.isNotEmpty && !currentText.endsWith(' ') ? ' ' : '') + result);
-                                                        // Move cursor to end
-                                                        _textController.selection = TextSelection.fromPosition(TextPosition(offset: _textController.text.length));
-                                                    });
-                                                }
-                                            });
-                                        },
-                                      ),
-                                    ),
+                                     child: IconButton(
+                                         icon: const Icon(Icons.headphones, color: Colors.white),
+                                         tooltip: 'Voice Mode',
+                                         onPressed: () {
+                                              HapticFeedback.mediumImpact();
+                                              context.read<ChatProvider>().toggleContinuousVoiceMode();
+                                              Navigator.of(context).push(PageRouteBuilder(
+                                                  opaque: false,
+                                                  pageBuilder: (_, __, ___) => const VoiceModeOverlay(),
+                                                  transitionsBuilder: (_, anim, __, child) {
+                                                      return FadeTransition(opacity: anim, child: child);
+                                                  }
+                                              ));
+                                         },
+                                     ),
+                                 ),
                                   ],
                              ),
                            ),
