@@ -133,7 +133,7 @@ class _ChatScreenState extends State<ChatScreen> {
             ),
             Consumer<ChatProvider>(
                 builder: (context, chat, _) => IconButton(
-                    icon: Icon(chat.isTempMode ? Icons.visibility_off : Icons.history, 
+                    icon: Icon(chat.isTempMode ? Icons.history : Icons.visibility_off, 
                         color: chat.isTempMode ? Colors.white : Colors.white70),
                     tooltip: chat.isTempMode ? 'Turn off Incognito' : 'Turn on Incognito',
                     onPressed: () {
