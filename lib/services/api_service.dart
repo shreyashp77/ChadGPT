@@ -26,6 +26,30 @@ class ApiService {
     }
   }
 
+  // SearXNG - Check Connection (Head Request or Simple Search)
+  Future<bool> checkSearxngConnection() async {
+      try {
+          // Normalize URL
+          var url = settings.searxngUrl.trim();
+          if (url.endsWith('/')) {
+              url = url.substring(0, url.length - 1);
+          }
+
+          // Just fetching the base URL or a simple search to see if it responds
+          // We use format=json because that's what the app relies on.
+          final uri = Uri.parse('$url/search?q=test&format=json');
+          
+          print('DEBUG: Checking SearXNG at $uri');
+          final response = await http.get(uri).timeout(const Duration(seconds: 5));
+          print('DEBUG: SearXNG Check Status: ${response.statusCode}');
+          
+          return response.statusCode == 200;
+      } catch (e) {
+          print('DEBUG: SearXNG Check Failed: $e');
+          return false;
+      }
+  }
+
   // SearXNG - Search
   Future<List<String>> searchWeb(String query) async {
     try {

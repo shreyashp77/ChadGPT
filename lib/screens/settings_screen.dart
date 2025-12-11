@@ -110,15 +110,65 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Widget _buildConnectionCard(BuildContext context, SettingsProvider settingsProvider) {
+    // LM Studio Status
+    final isLmConnected = settingsProvider.error == null;
+    final lmStatusDot = Container(
+       width: 8, 
+       height: 8,
+       decoration: BoxDecoration(
+           color: isLmConnected ? Colors.green : Colors.red,
+           shape: BoxShape.circle,
+           boxShadow: [
+               BoxShadow(
+                   color: (isLmConnected ? Colors.green : Colors.red).withValues(alpha: 0.5), 
+                   blurRadius: 5, 
+                   spreadRadius: 1
+               )
+           ]
+       ),
+    );
+
+    // SearXNG Status
+    final isSearxngConnected = settingsProvider.isSearxngConnected;
+    final searxngStatusDot = Container(
+       width: 8, 
+       height: 8,
+       decoration: BoxDecoration(
+           color: isSearxngConnected ? Colors.green : Colors.red,
+           shape: BoxShape.circle,
+           boxShadow: [
+               BoxShadow(
+                   color: (isSearxngConnected ? Colors.green : Colors.red).withValues(alpha: 0.5), 
+                   blurRadius: 5, 
+                   spreadRadius: 1
+               )
+           ]
+       ),
+    );
+
     return _buildCard(
       context: context,
       child: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
           children: [
-            _buildInputField(context, 'LM Studio URL', _lmStudioController, Icons.computer, (val) => settingsProvider.updateSettings(lmStudioUrl: val)),
+            _buildInputField(
+                context, 
+                'LM Studio URL', 
+                _lmStudioController, 
+                Icons.computer, 
+                (val) => settingsProvider.updateSettings(lmStudioUrl: val),
+                labelTrailing: lmStatusDot
+            ),
             const SizedBox(height: 16),
-            _buildInputField(context, 'SearXNG URL', _searxngController, Icons.search, (val) => settingsProvider.updateSettings(searxngUrl: val)),
+            _buildInputField(
+                context, 
+                'SearXNG URL', 
+                _searxngController, 
+                Icons.search, 
+                (val) => settingsProvider.updateSettings(searxngUrl: val),
+                labelTrailing: searxngStatusDot
+            ),
             const SizedBox(height: 20),
             SizedBox(
               width: double.infinity,
@@ -166,7 +216,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  Widget _buildInputField(BuildContext context, String label, TextEditingController controller, IconData icon, Function(String) onChanged) {
+  Widget _buildInputField(BuildContext context, String label, TextEditingController controller, IconData icon, Function(String) onChanged, {Widget? labelTrailing}) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final textColor = isDark ? Colors.white : Colors.black87;
     final hintColor = isDark ? Colors.white24 : Colors.black26;
@@ -176,7 +226,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: TextStyle(color: labelColor, fontSize: 13, fontWeight: FontWeight.w500)),
+        Row(
+            children: [
+                Text(label, style: TextStyle(color: labelColor, fontSize: 13, fontWeight: FontWeight.w500)),
+                if (labelTrailing != null) ...[
+                    const SizedBox(width: 8),
+                    labelTrailing,
+                ]
+            ],
+        ),
         const SizedBox(height: 8),
         TextField(
           controller: controller,

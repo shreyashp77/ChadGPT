@@ -15,11 +15,13 @@ class SettingsProvider with ChangeNotifier {
   List<String> _availableModels = [];
   bool _isLoadingModels = false;
   String? _error;
+  bool _isSearxngConnected = false;
 
   AppSettings get settings => _settings;
   List<String> get availableModels => _availableModels;
   bool get isLoadingModels => _isLoadingModels;
   String? get error => _error;
+  bool get isSearxngConnected => _isSearxngConnected;
   ApiService get apiService => _apiService;
 
   SettingsProvider() {
@@ -59,6 +61,14 @@ class SettingsProvider with ChangeNotifier {
     
     notifyListeners();
     await _prefsService.saveSettings(_settings);
+
+    // If SearXNG URL changed, re-check connection immediately
+    if (searxngUrl != null) {
+         _apiService.checkSearxngConnection().then((value) {
+            _isSearxngConnected = value;
+            notifyListeners();
+        });
+    }
   }
 
   Future<void> updateModelAlias(String modelId, String alias) async {
@@ -79,6 +89,12 @@ class SettingsProvider with ChangeNotifier {
     _isLoadingModels = true;
     _error = null;
     notifyListeners();
+
+    // Check SearXNG in parallel
+    _apiService.checkSearxngConnection().then((value) {
+        _isSearxngConnected = value;
+        notifyListeners();
+    });
 
     try {
       _availableModels = await _apiService.getModels();
