@@ -88,6 +88,7 @@ class _ChatScreenState extends State<ChatScreen> {
     final currentChat = chatProvider.currentChat;
 
     return Scaffold(
+      backgroundColor: chatProvider.isTempMode ? const Color(0xFF202124) : null, // Darker background for Incognito
       extendBodyBehindAppBar: true,
       drawer: const AppDrawer(),
       appBar: AppBar(
