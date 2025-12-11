@@ -146,21 +146,7 @@ class _ChatScreenState extends State<ChatScreen> {
                     },
                 ),
             ),
-            IconButton(
-                icon: const Icon(Icons.headphones, color: Colors.white70),
-                tooltip: 'Voice Mode',
-                onPressed: () {
-                     HapticFeedback.mediumImpact();
-                     context.read<ChatProvider>().toggleContinuousVoiceMode();
-                     Navigator.of(context).push(PageRouteBuilder(
-                         opaque: false,
-                         pageBuilder: (_, __, ___) => const VoiceModeOverlay(),
-                         transitionsBuilder: (_, anim, __, child) {
-                             return FadeTransition(opacity: anim, child: child);
-                         }
-                     ));
-                },
-            ),
+
         ],
         flexibleSpace: ClipRRect(
              child: BackdropFilter(
@@ -352,6 +338,23 @@ class _ChatScreenState extends State<ChatScreen> {
                                  ),
 
                                  const Spacer(),
+
+                                 IconButton(
+                                     icon: const Icon(Icons.headphones, color: Colors.grey),
+                                     tooltip: 'Voice Mode',
+                                     onPressed: () {
+                                          HapticFeedback.mediumImpact();
+                                          context.read<ChatProvider>().toggleContinuousVoiceMode();
+                                          Navigator.of(context).push(PageRouteBuilder(
+                                              opaque: false,
+                                              pageBuilder: (_, __, ___) => const VoiceModeOverlay(),
+                                              transitionsBuilder: (_, anim, __, child) {
+                                                  return FadeTransition(opacity: anim, child: child);
+                                              }
+                                          ));
+                                     },
+                                 ),
+                                 const SizedBox(width: 8),
 
                                  // Send / Mic Button
                                  Container(
