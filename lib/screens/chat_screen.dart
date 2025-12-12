@@ -433,7 +433,7 @@ class _ChatScreenState extends State<ChatScreen> {
                                    });
                                },
                                behavior: HitTestBehavior.opaque,
-                               child: Container(color: Colors.black.withValues(alpha: 0.4)),
+                               child: Container(color: Colors.black.withValues(alpha: 0.85)),
                            ),
                        ),
                        // Floating Options
@@ -556,10 +556,11 @@ class _ChatScreenState extends State<ChatScreen> {
       ));
   }
 
-  void _showRenameDialog(BuildContext context, String modelId, String currentName) {
+  void _showRenameDialog(BuildContext parentContext, String modelId, String currentName) {
       final controller = TextEditingController(text: currentName);
+      // Use the state's context (this.context) which is always valid, not the passed context
       showDialog(
-          context: context,
+          context: this.context,
           builder: (ctx) => AlertDialog(
               backgroundColor: const Color(0xFF1E1E1E),
               title: const Text('Rename Model', style: TextStyle(color: Colors.white)),
@@ -580,14 +581,9 @@ class _ChatScreenState extends State<ChatScreen> {
                   ),
                   TextButton(
                       onPressed: () {
-                          context.read<SettingsProvider>().updateModelAlias(modelId, controller.text);
-                          Navigator.pop(ctx);
-                          // Force rebuild/refresh of the selector if open? 
-                          // The selector is a modal bottom sheet built with current context. 
-                          // Since we update provider, it should rebuild if we watched it. 
-                          // But we passed 'settings' (read) to the builder. 
-                          // We might need to close and reopen the selector or make the selector a consumer.
-                          Navigator.pop(context); // Close the selector too to see the update in the pill
+                          this.context.read<SettingsProvider>().updateModelAlias(modelId, controller.text);
+                          Navigator.pop(ctx); // Close dialog
+                          Navigator.pop(this.context); // Close model selector
                       },
                       child: const Text('Save', style: TextStyle(color: AppTheme.accent)),
                   ),
@@ -595,20 +591,20 @@ class _ChatScreenState extends State<ChatScreen> {
           ),
       );
   }
-  void _showGrokModelSelector(BuildContext context) {
-      final settings = context.read<SettingsProvider>();
+  void _showGrokModelSelector(BuildContext outerContext) {
+      final settings = this.context.read<SettingsProvider>();
       final currentModel = settings.settings.selectedModelId;
       
       showModalBottomSheet(
-          context: context,
+          context: this.context,
           backgroundColor: Colors.transparent,
           isScrollControlled: true,
           builder: (ctx) => Container(
               margin: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.surfaceContainer, // Theme-aware background
+                  color: Theme.of(ctx).colorScheme.surfaceContainer,
                   borderRadius: BorderRadius.circular(24),
-                  border: Border.all(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.1)),
+                  border: Border.all(color: Theme.of(ctx).colorScheme.onSurface.withValues(alpha: 0.1)),
                   boxShadow: [
                       BoxShadow(color: Colors.black.withValues(alpha: 0.2), blurRadius: 20, offset: const Offset(0, 10))
                   ]
@@ -623,38 +619,38 @@ class _ChatScreenState extends State<ChatScreen> {
                             children: [
                                 Row(
                                     children: [
-                                        Icon(Icons.auto_awesome, color: Theme.of(context).colorScheme.onSurface, size: 20),
+                                        Icon(Icons.auto_awesome, color: Theme.of(ctx).colorScheme.onSurface, size: 20),
                                         const SizedBox(width: 8),
-                                        Text('Select Model', style: TextStyle(color: Theme.of(context).colorScheme.onSurface, fontSize: 18, fontWeight: FontWeight.bold)),
+                                        Text('Select Model', style: TextStyle(color: Theme.of(ctx).colorScheme.onSurface, fontSize: 18, fontWeight: FontWeight.bold)),
                                     ],
                                 ),
-                                IconButton(icon: Icon(Icons.refresh, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7)), onPressed: () {
+                                IconButton(icon: Icon(Icons.refresh, color: Theme.of(ctx).colorScheme.onSurface.withValues(alpha: 0.7)), onPressed: () {
                                     settings.fetchModels();
                                     Navigator.pop(ctx);
-                                    _showGrokModelSelector(context); 
+                                    _showGrokModelSelector(this.context); 
                                 }),
                             ],
                         ),
                       ),
-                      Divider(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.1), height: 1),
+                      Divider(color: Theme.of(ctx).colorScheme.onSurface.withValues(alpha: 0.1), height: 1),
                       ConstrainedBox(
-                          constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.4),
+                          constraints: BoxConstraints(maxHeight: MediaQuery.of(ctx).size.height * 0.4),
                           child: ListView.builder(
                               shrinkWrap: true,
                               padding: const EdgeInsets.symmetric(vertical: 8),
                               itemCount: settings.availableModels.length,
-                              itemBuilder: (context, index) {
+                              itemBuilder: (listCtx, index) {
                                   final modelId = settings.availableModels[index];
                                   final isSelected = modelId == currentModel;
                                   final displayName = settings.getModelDisplayName(modelId);
                                   
                                   return ListTile(
-                                      title: Text(displayName, style: TextStyle(color: isSelected ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7), fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
-                                      subtitle: displayName != modelId.split('/').last ? Text(modelId.split('/').last, style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.3), fontSize: 10)) : null,
-                                      leading: isSelected ? Icon(Icons.check_circle, color: Theme.of(context).colorScheme.primary) : Icon(Icons.circle_outlined, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.3)),
+                                      title: Text(displayName, style: TextStyle(color: isSelected ? Theme.of(listCtx).colorScheme.primary : Theme.of(listCtx).colorScheme.onSurface.withValues(alpha: 0.7), fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
+                                      subtitle: displayName != modelId.split('/').last ? Text(modelId.split('/').last, style: TextStyle(color: Theme.of(listCtx).colorScheme.onSurface.withValues(alpha: 0.3), fontSize: 10)) : null,
+                                      leading: isSelected ? Icon(Icons.check_circle, color: Theme.of(listCtx).colorScheme.primary) : Icon(Icons.circle_outlined, color: Theme.of(listCtx).colorScheme.onSurface.withValues(alpha: 0.3)),
                                       trailing: IconButton(
-                                          icon: Icon(Icons.edit, size: 16, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.3)),
-                                          onPressed: () => _showRenameDialog(context, modelId, displayName),
+                                          icon: Icon(Icons.edit, size: 16, color: Theme.of(listCtx).colorScheme.onSurface.withValues(alpha: 0.3)),
+                                          onPressed: () => _showRenameDialog(this.context, modelId, displayName),
                                       ),
                                       onTap: () {
                                           settings.updateSettings(selectedModelId: modelId);
@@ -812,7 +808,7 @@ class _ChatScreenState extends State<ChatScreen> {
                                    });
                                },
                                behavior: HitTestBehavior.opaque,
-                               child: Container(color: Colors.black.withValues(alpha: 0.4)),
+                               child: Container(color: Colors.black.withValues(alpha: 0.85)),
                            ),
                        ),
                        // Floating Options
