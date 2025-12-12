@@ -94,8 +94,8 @@ class _ChatScreenState extends State<ChatScreen> {
     final chatProvider = context.watch<ChatProvider>();
     final currentChat = chatProvider.currentChat;
 
-    // Auto-scroll to bottom if generating
-    if (chatProvider.isTyping) {
+    // Auto-scroll to bottom if generating AND user is at bottom (Sticky Scroll)
+    if (chatProvider.isTyping && !_showScrollDownButton) {
        _scrollToBottom(isImmediate: true);
     }
 
