@@ -47,6 +47,10 @@ class ChatProvider with ChangeNotifier {
   String? _currentVoiceSubtitle;
   String? get currentVoiceSubtitle => _currentVoiceSubtitle;
 
+  // Generation timing for typing indicator
+  DateTime? _generationStartTime;
+  DateTime? get generationStartTime => _generationStartTime;
+
   ChatProvider(this._settingsProvider) {
     _loadChats();
     _loadCustomPersonas();
@@ -405,9 +409,68 @@ class ChatProvider with ChangeNotifier {
       }
   }
 
+  /// Edit a user message and regenerate the response
+  Future<void> editMessage(String messageId, String newContent) async {
+    if (_currentChat == null) return;
+    
+    // Find the message index
+    final msgIndex = _currentChat!.messages.indexWhere((m) => m.id == messageId);
+    if (msgIndex == -1) return;
+    
+    final originalMsg = _currentChat!.messages[msgIndex];
+    if (originalMsg.role != MessageRole.user) return; // Only edit user messages
+    
+    // Create updated message with isEdited flag
+    final updatedMsg = originalMsg.copyWith(
+      content: newContent,
+      isEdited: true,
+    );
+    
+    // Delete all messages after this one (including AI responses)
+    final messagesToDelete = _currentChat!.messages.skip(msgIndex + 1).toList();
+    
+    if (!_isTempMode) {
+      for (final msg in messagesToDelete) {
+        await _dbService.deleteMessage(msg.id);
+      }
+      // Update the edited message in DB
+      await _dbService.updateMessage(updatedMsg);
+    }
+    
+    // Update local state
+    _currentChat!.messages[msgIndex] = updatedMsg;
+    _currentChat!.messages.removeRange(msgIndex + 1, _currentChat!.messages.length);
+    notifyListeners();
+    
+    // Regenerate response
+    final useWebSearch = _settingsProvider.settings.useWebSearch;
+    await _generateAssistantResponse(newContent, useWebSearch: useWebSearch);
+  }
+
+  // Analytics Getters
+  
+  /// Total tokens used in current session (all messages)
+  int get totalTokensInCurrentChat {
+    if (_currentChat == null) return 0;
+    return _currentChat!.messages.fold(0, (sum, msg) => sum + msg.totalTokens);
+  }
+  
+  /// Get token usage by message (for display)
+  Map<String, int> getTokenUsageForMessage(String messageId) {
+    if (_currentChat == null) return {};
+    final msg = _currentChat!.messages.where((m) => m.id == messageId).firstOrNull;
+    if (msg == null) return {};
+    return {
+      'prompt': msg.promptTokens ?? 0,
+      'completion': msg.completionTokens ?? 0,
+      'total': msg.totalTokens,
+    };
+  }
+
   Future<void> _generateAssistantResponse(String userPrompt, {bool useWebSearch = false}) async {
     _abortGeneration = false; // Reset abort flag
     _isTyping = true;
+    _generationStartTime = DateTime.now();
     notifyListeners();
 
     // Prepare for response
@@ -422,6 +485,10 @@ class ChatProvider with ChangeNotifier {
     
     _currentChat!.messages.add(assistantMsg);
     notifyListeners();
+
+    // Track token usage
+    int? promptTokens;
+    int? completionTokens;
 
     try {
       // Check for web search
@@ -450,51 +517,61 @@ class ChatProvider with ChangeNotifier {
       await for (final chunk in stream) {
         if (_abortGeneration) break;
         
-        fullResponse += chunk;
-        
-        // Voice Mode: Streaming TTS
-        if (_isContinuousVoiceMode) {
-             sentenceBuffer += chunk;
-             
-             // continuously check for matches
-             while (true) {
-                 final match = sentenceTerminator.firstMatch(sentenceBuffer);
-                 if (match == null) break;
-                 
-                 // Extract sentence including the terminator (up to match.end)
-                 final sentence = sentenceBuffer.substring(0, match.end);
-                 
-                 // Speak it
-                 if (sentence.trim().isNotEmpty) {
-                     _ttsService.speakQueued(sentence.trim());
-                 }
-                 
-                 // Remove from buffer
-                 sentenceBuffer = sentenceBuffer.substring(match.end);
-             }
-        }
-        
-         // Update the message in the list
-        _currentChat!.messages.last = Message(
-          id: assistantMsgId,
-          chatId: _currentChat!.id,
-          role: MessageRole.assistant,
-          content: fullResponse,
-          timestamp: DateTime.now(),
-        );
+        // Handle content
+        if (chunk.content != null) {
+          fullResponse += chunk.content!;
+          
+          // Voice Mode: Streaming TTS
+          if (_isContinuousVoiceMode) {
+               sentenceBuffer += chunk.content!;
+               
+               while (true) {
+                   final match = sentenceTerminator.firstMatch(sentenceBuffer);
+                   if (match == null) break;
+                   
+                   final sentence = sentenceBuffer.substring(0, match.end);
+                   
+                   if (sentence.trim().isNotEmpty) {
+                       _ttsService.speakQueued(sentence.trim());
+                   }
+                   
+                   sentenceBuffer = sentenceBuffer.substring(match.end);
+               }
+          }
+          
+          // Update the message in the list
+          _currentChat!.messages.last = Message(
+            id: assistantMsgId,
+            chatId: _currentChat!.id,
+            role: MessageRole.assistant,
+            content: fullResponse,
+            timestamp: DateTime.now(),
+          );
 
-        // Throttled Haptic Feedback (every ~80ms)
-        // Only play haptics if NOT in continuous voice mode
-        if (!_isContinuousVoiceMode) {
-            final now = DateTime.now().millisecondsSinceEpoch;
-            if (now - lastHapticTime > 80) {
-                HapticFeedback.selectionClick();
-                lastHapticTime = now;
-            }
+          // Throttled Haptic Feedback
+          if (!_isContinuousVoiceMode) {
+              final now = DateTime.now().millisecondsSinceEpoch;
+              if (now - lastHapticTime > 80) {
+                  HapticFeedback.selectionClick();
+                  lastHapticTime = now;
+              }
+          }
+          
+          notifyListeners();
         }
         
-        notifyListeners();
+        // Handle token usage (comes in final chunk)
+        if (chunk.hasUsage) {
+          promptTokens = chunk.promptTokens;
+          completionTokens = chunk.completionTokens;
+        }
       }
+      
+      // Update final message with token counts
+      _currentChat!.messages.last = _currentChat!.messages.last.copyWith(
+        promptTokens: promptTokens,
+        completionTokens: completionTokens,
+      );
       
       // Save assistant message to DB
       if (!_isTempMode) {
@@ -516,6 +593,7 @@ class ChatProvider with ChangeNotifier {
       ));
     } finally {
       _isTyping = false;
+      _generationStartTime = null;
       notifyListeners();
     }
   }

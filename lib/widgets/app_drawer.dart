@@ -5,6 +5,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import '../providers/chat_provider.dart';
 import '../utils/theme.dart';
 import '../screens/settings_screen.dart';
+import '../screens/analytics_screen.dart';
 
 class AppDrawer extends StatefulWidget {
   const AppDrawer({super.key});
@@ -197,6 +198,26 @@ class _AppDrawerState extends State<AppDrawer> {
                                onPressed: () {
                                    Navigator.pop(context);
                                    Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen()));
+                               },
+                           ),
+                       ),
+                       const SizedBox(width: 12),
+
+                       // Analytics Button
+                       Container(
+                           height: 50,
+                           width: 50,
+                           decoration: BoxDecoration(
+                               shape: BoxShape.circle,
+                               color: searchBarColor,
+                               border: Border.all(color: isDark ? Colors.white10 : Colors.black.withValues(alpha: 0.05)),
+                           ),
+                           child: IconButton(
+                               icon: Icon(Icons.analytics_outlined, color: iconColor),
+                               tooltip: 'Analytics',
+                               onPressed: () {
+                                   Navigator.pop(context);
+                                   Navigator.push(context, MaterialPageRoute(builder: (_) => const AnalyticsScreen()));
                                },
                            ),
                        ),

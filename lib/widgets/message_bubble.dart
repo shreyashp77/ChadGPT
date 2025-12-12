@@ -11,20 +11,86 @@ import '../models/message.dart';
 import '../utils/theme.dart';
 
 
-class MessageBubble extends StatelessWidget {
+class MessageBubble extends StatefulWidget {
   final Message message;
 
   const MessageBubble({super.key, required this.message});
 
   @override
+  State<MessageBubble> createState() => _MessageBubbleState();
+}
+
+class _MessageBubbleState extends State<MessageBubble> {
+  late TextEditingController _editController;
+
+  @override
+  void initState() {
+    super.initState();
+    _editController = TextEditingController(text: widget.message.content);
+  }
+
+  @override
+  void dispose() {
+    _editController.dispose();
+    super.dispose();
+  }
+
+  void _showEditDialog(BuildContext context, ChatProvider chatProvider) {
+    _editController.text = widget.message.content;
+    final messageId = widget.message.id;
+    
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: const Color(0xFF1E1E1E),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Edit Message', style: TextStyle(color: Colors.white)),
+        content: TextField(
+          controller: _editController,
+          maxLines: 5,
+          autofocus: true,
+          style: const TextStyle(color: Colors.white),
+          decoration: InputDecoration(
+            filled: true,
+            fillColor: const Color(0xFF2A2A2A),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide.none,
+            ),
+            hintText: 'Enter new message...',
+            hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.5)),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: Text('Cancel', style: TextStyle(color: Colors.grey[400])),
+          ),
+          FilledButton(
+            onPressed: () {
+              final newContent = _editController.text.trim();
+              if (newContent.isNotEmpty) {
+                Navigator.pop(dialogContext);
+                // Use the chatProvider passed from parent context
+                chatProvider.editMessage(messageId, newContent);
+              }
+            },
+            child: const Text('Save & Regenerate'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final message = widget.message;
     // 1. Determine roles
     final isUser = message.role == MessageRole.user;
     final isSystem = message.role == MessageRole.system;
 
     // 2. System Message
     if (isSystem) {
-       // ... existing system message code ...
        return Center(
         child: Container(
           margin: const EdgeInsets.symmetric(vertical: 12),
@@ -140,6 +206,20 @@ class MessageBubble extends StatelessWidget {
                                     'code': CodeElementBuilder(context),
                                 },
                             ),
+                            
+                            // Edited indicator
+                            if (message.isEdited)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 4),
+                                child: Text(
+                                  '(edited)',
+                                  style: TextStyle(
+                                    color: isUser ? Colors.white54 : Colors.white38,
+                                    fontSize: 10,
+                                    fontStyle: FontStyle.italic,
+                                  ),
+                                ),
+                              ),
                         ],
                     ),
                 ),
@@ -185,7 +265,48 @@ class MessageBubble extends StatelessWidget {
                                             chatProvider.regenerateLastResponse();
                                         }
                                     ),
-                                ]
+                                ],
+                                // Token count badge
+                                if (message.totalTokens > 0) ...[
+                                    const SizedBox(width: 12),
+                                    _buildTokenBadge(context, message),
+                                ],
+                            ],
+                        ),
+                    ),
+                
+                // Action Buttons for User messages
+                if (isUser && !chatProvider.isTyping)
+                    Padding(
+                        padding: const EdgeInsets.only(top: 6, right: 4),
+                        child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                                _buildActionButton(
+                                    context,
+                                    icon: Icons.edit_outlined,
+                                    onTap: () {
+                                        HapticFeedback.lightImpact();
+                                        _showEditDialog(context, chatProvider);
+                                    },
+                                ),
+                                const SizedBox(width: 12),
+                                _buildActionButton(
+                                    context, 
+                                    icon: Icons.copy_outlined, 
+                                    onTap: () {
+                                            Clipboard.setData(ClipboardData(text: message.content));
+                                            ScaffoldMessenger.of(context).showSnackBar(
+                                                SnackBar(
+                                                    content: const Text('Copied'), 
+                                                    behavior: SnackBarBehavior.floating, 
+                                                    width: 100, 
+                                                    backgroundColor: theme.primaryColor, 
+                                                    duration: const Duration(milliseconds: 500)
+                                                )
+                                            );
+                                    }
+                                ),
                             ],
                         ),
                     ),
@@ -193,6 +314,34 @@ class MessageBubble extends StatelessWidget {
         ),
       ),
     ).animate().fadeIn(duration: 400.ms).slideY(begin: 0.1, end: 0, duration: 400.ms, curve: Curves.easeOutQuad);
+  }
+
+  Widget _buildTokenBadge(BuildContext context, Message message) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.token_outlined,
+            size: 12,
+            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5),
+          ),
+          const SizedBox(width: 4),
+          Text(
+            '${message.totalTokens}',
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5),
+              fontSize: 10,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildAvatar(BuildContext context, bool isUser, ChatProvider chatProvider, {double size = 36, double iconSize = 20}) {

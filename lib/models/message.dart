@@ -9,6 +9,13 @@ class Message {
   final String? attachmentPath; // Path to local file if any
   final String? attachmentType; // 'image', 'file', etc.
   bool isDateSeparator; // For UI purposes
+  
+  // Token tracking
+  final int? promptTokens;
+  final int? completionTokens;
+  
+  // Edit tracking
+  final bool isEdited;
 
   Message({
     required this.id,
@@ -19,7 +26,42 @@ class Message {
     this.attachmentPath,
     this.attachmentType,
     this.isDateSeparator = false,
+    this.promptTokens,
+    this.completionTokens,
+    this.isEdited = false,
   });
+
+  // Helper to get total tokens for this message
+  int get totalTokens => (promptTokens ?? 0) + (completionTokens ?? 0);
+
+  // Create a copy with updated fields
+  Message copyWith({
+    String? id,
+    String? chatId,
+    MessageRole? role,
+    String? content,
+    DateTime? timestamp,
+    String? attachmentPath,
+    String? attachmentType,
+    bool? isDateSeparator,
+    int? promptTokens,
+    int? completionTokens,
+    bool? isEdited,
+  }) {
+    return Message(
+      id: id ?? this.id,
+      chatId: chatId ?? this.chatId,
+      role: role ?? this.role,
+      content: content ?? this.content,
+      timestamp: timestamp ?? this.timestamp,
+      attachmentPath: attachmentPath ?? this.attachmentPath,
+      attachmentType: attachmentType ?? this.attachmentType,
+      isDateSeparator: isDateSeparator ?? this.isDateSeparator,
+      promptTokens: promptTokens ?? this.promptTokens,
+      completionTokens: completionTokens ?? this.completionTokens,
+      isEdited: isEdited ?? this.isEdited,
+    );
+  }
 
   Map<String, dynamic> toMap() {
     return {
@@ -30,6 +72,9 @@ class Message {
       'timestamp': timestamp.toIso8601String(),
       'attachment_path': attachmentPath,
       'attachment_type': attachmentType,
+      'prompt_tokens': promptTokens,
+      'completion_tokens': completionTokens,
+      'is_edited': isEdited ? 1 : 0,
     };
   }
 
@@ -44,6 +89,9 @@ class Message {
       timestamp: DateTime.parse(map['timestamp']),
       attachmentPath: map['attachment_path'],
       attachmentType: map['attachment_type'],
+      promptTokens: map['prompt_tokens'],
+      completionTokens: map['completion_tokens'],
+      isEdited: map['is_edited'] == 1,
     );
   }
 }

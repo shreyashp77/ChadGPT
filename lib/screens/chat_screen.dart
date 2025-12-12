@@ -13,6 +13,7 @@ import '../widgets/message_bubble.dart';
 import '../widgets/app_drawer.dart';
 import '../widgets/create_persona_dialog.dart';
 import '../widgets/voice_mode_overlay.dart';
+import '../widgets/typing_indicator.dart';
 
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
@@ -191,7 +192,11 @@ class _ChatScreenState extends State<ChatScreen> {
                     itemCount: currentChat.messages.length + (chatProvider.isTyping && currentChat.messages.last.role != MessageRole.assistant ? 1 : 0),
                     itemBuilder: (context, index) {
                       if (index >= currentChat.messages.length) {
-                          return const Center(child: Padding(padding: EdgeInsets.all(8), child: CircularProgressIndicator()));
+                          // Show typing indicator instead of spinner
+                          return const Align(
+                            alignment: Alignment.centerLeft,
+                            child: TypingIndicator(),
+                          );
                       }
                       return MessageBubble(message: currentChat.messages[index]);
                     },

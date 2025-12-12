@@ -24,7 +24,7 @@ class DatabaseService {
     String path = join(await getDatabasesPath(), AppConstants.dbName);
     return await openDatabase(
       path,
-      version: 2, // Incremented version
+      version: 3, // Incremented for token tracking
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -50,6 +50,9 @@ class DatabaseService {
         timestamp TEXT,
         attachment_path TEXT,
         attachment_type TEXT,
+        prompt_tokens INTEGER,
+        completion_tokens INTEGER,
+        is_edited INTEGER DEFAULT 0,
         FOREIGN KEY (chat_id) REFERENCES ${AppConstants.tableNameChats} (id) ON DELETE CASCADE
       )
     ''');
@@ -57,11 +60,25 @@ class DatabaseService {
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
     if (oldVersion < 2) {
-       // Check if column exists to avoid duplicate column error during dev iterations
        final columns = await db.rawQuery('PRAGMA table_info(${AppConstants.tableNameChats})');
        final hasColumn = columns.any((column) => column['name'] == 'system_prompt');
        if (!hasColumn) {
            await db.execute('ALTER TABLE ${AppConstants.tableNameChats} ADD COLUMN system_prompt TEXT');
+       }
+    }
+    if (oldVersion < 3) {
+       // Add token tracking and edit columns
+       final columns = await db.rawQuery('PRAGMA table_info(${AppConstants.tableNameMessages})');
+       final columnNames = columns.map((c) => c['name']).toSet();
+       
+       if (!columnNames.contains('prompt_tokens')) {
+           await db.execute('ALTER TABLE ${AppConstants.tableNameMessages} ADD COLUMN prompt_tokens INTEGER');
+       }
+       if (!columnNames.contains('completion_tokens')) {
+           await db.execute('ALTER TABLE ${AppConstants.tableNameMessages} ADD COLUMN completion_tokens INTEGER');
+       }
+       if (!columnNames.contains('is_edited')) {
+           await db.execute('ALTER TABLE ${AppConstants.tableNameMessages} ADD COLUMN is_edited INTEGER DEFAULT 0');
        }
     }
   }
@@ -151,6 +168,25 @@ class DatabaseService {
       AppConstants.tableNameMessages,
       where: 'id = ?',
       whereArgs: [id],
+    );
+  }
+
+  Future<void> updateMessage(Message message) async {
+    final db = await database;
+    await db.update(
+      AppConstants.tableNameMessages,
+      message.toMap(),
+      where: 'id = ?',
+      whereArgs: [message.id],
+    );
+  }
+
+  Future<void> deleteMessagesAfter(String chatId, DateTime afterTimestamp) async {
+    final db = await database;
+    await db.delete(
+      AppConstants.tableNameMessages,
+      where: 'chat_id = ? AND timestamp > ?',
+      whereArgs: [chatId, afterTimestamp.toIso8601String()],
     );
   }
 }

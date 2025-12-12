@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:http/http.dart' as http;
 import '../models/app_settings.dart';
 import '../models/message.dart';
+import '../models/stream_chunk.dart';
 
 class ApiService {
   final AppSettings settings;
@@ -281,7 +282,8 @@ class ApiService {
   }
 
   // Chat Completion Stream - Routes to appropriate provider
-  Stream<String> chatCompletionStream({
+  // Returns StreamChunk objects containing content and token usage
+  Stream<StreamChunk> chatCompletionStream({
     required String modelId,
     required List<Message> messages,
     List<String>? searchResults,
@@ -305,7 +307,7 @@ class ApiService {
   }
 
   // LM Studio - Chat Completion Stream
-  Stream<String> _lmStudioChatStream({
+  Stream<StreamChunk> _lmStudioChatStream({
     required String modelId,
     required List<Message> messages,
     List<String>? searchResults,
@@ -313,7 +315,6 @@ class ApiService {
   }) async* {
     
     // Construct messages payload.
-    // If search results exist, inject them into the system prompt or as a context message.
     final List<Map<String, dynamic>> apiMessages = [];
     
     // System message
@@ -323,18 +324,14 @@ class ApiService {
     }
     
     apiMessages.add({'role': 'system', 'content': systemContent});
-    print('DEBUG: Sending System Prompt: $systemContent'); // Debug logging
 
-    // Chat history
-    // Sliding Window: Keep only the last 20 messages to manage context
+    // Chat history - Sliding Window
     var contextMessages = messages;
     if (messages.length > 20) {
       contextMessages = messages.sublist(messages.length - 20);
     }
 
     for (var msg in contextMessages) {
-       // Handle attachments if present (assuming base64 handling is done in Message model or logic before here)
-       // For simplicity, we just send text for now, but will expand for attachments later.
        if (msg.role != MessageRole.system) {
          Map<String, dynamic> msgMap = {
            'role': msg.role.toString().split('.').last,
@@ -349,20 +346,18 @@ class ApiService {
                 final bytes = await file.readAsBytes();
                 final base64Image = base64Encode(bytes);
                 
-                // OpenAI Vision format
                 msgMap['content'] = [
                   {'type': 'text', 'text': msg.content},
                   {
                     'type': 'image_url',
                     'image_url': {
-                      'url': 'data:image/jpeg;base64,$base64Image' // Assuming jpeg for simplicity, or we check extension
+                      'url': 'data:image/jpeg;base64,$base64Image'
                     }
                   }
                 ];
               }
             } catch (e) {
                print("Error reading image: $e");
-               // Fallback to text only if image read fails
             }
          }
          
@@ -376,8 +371,9 @@ class ApiService {
       'model': modelId,
       'messages': apiMessages,
       'stream': true,
+      'stream_options': {'include_usage': true}, // Request token usage
       'temperature': 0.7, 
-      'seed': Random().nextInt(1000000), // Force variation
+      'seed': Random().nextInt(1000000),
     });
 
     final client = http.Client();
@@ -385,18 +381,30 @@ class ApiService {
       final streamedResponse = await client.send(request);
 
       await for (final chunk in streamedResponse.stream.transform(utf8.decoder)) {
-        // Process chunk (could be multiple data: lines)
         final lines = chunk.split('\n');
         for (final line in lines) {
           if (line.startsWith('data: ')) {
             final data = line.substring(6);
-            if (data == '[DONE]') break;
+            if (data == '[DONE]') {
+              yield StreamChunk(isDone: true);
+              break;
+            }
             
             try {
               final json = jsonDecode(data);
-              final content = json['choices'][0]['delta']['content'];
-              if (content != null) {
-                yield content;
+              
+              // Check for content
+              final content = json['choices']?[0]?['delta']?['content'];
+              
+              // Check for usage (comes in final chunk)
+              final usage = json['usage'];
+              
+              if (content != null || usage != null) {
+                yield StreamChunk(
+                  content: content,
+                  promptTokens: usage?['prompt_tokens'],
+                  completionTokens: usage?['completion_tokens'],
+                );
               }
             } catch (e) {
               // Ignore parse errors for partial chunks
@@ -407,9 +415,9 @@ class ApiService {
     } catch (e) {
       final errorStr = e.toString();
       if (errorStr.contains('Connection refused') || errorStr.contains('SocketException')) {
-        yield "Error: Connection Refused. Check if LM Studio is running at ${settings.lmStudioUrl}";
+        yield StreamChunk(content: "Error: Connection Refused. Check if LM Studio is running at ${settings.lmStudioUrl}");
       } else {
-        yield "Error: $e";
+        yield StreamChunk(content: "Error: $e");
       }
     } finally {
       client.close();
@@ -417,7 +425,7 @@ class ApiService {
   }
 
   // OpenRouter - Chat Completion Stream
-  Stream<String> _openRouterChatStream({
+  Stream<StreamChunk> _openRouterChatStream({
     required String modelId,
     required List<Message> messages,
     List<String>? searchResults,
@@ -477,20 +485,30 @@ class ApiService {
     final request = http.Request('POST', Uri.parse('$openRouterBaseUrl/chat/completions'));
     request.headers['Content-Type'] = 'application/json';
     request.headers['Authorization'] = 'Bearer ${settings.openRouterApiKey}';
-    request.headers['HTTP-Referer'] = 'https://chadgpt.app'; // Required by OpenRouter
-    request.headers['X-Title'] = 'ChadGPT'; // Optional but recommended
+    request.headers['HTTP-Referer'] = 'https://chadgpt.app';
+    request.headers['X-Title'] = 'ChadGPT';
     request.body = jsonEncode({
       'model': modelId,
       'messages': apiMessages,
       'stream': true,
+      'include_usage': true, // OpenRouter supports this parameter
     });
 
     final client = http.Client();
     try {
       final streamedResponse = await client.send(request);
+      
+      print("DEBUG: OpenRouter response status: ${streamedResponse.statusCode}");
 
       if (streamedResponse.statusCode == 401) {
-        yield "Error: Invalid API key";
+        yield StreamChunk(content: "Error: Invalid API key");
+        return;
+      }
+      
+      if (streamedResponse.statusCode != 200) {
+        final body = await streamedResponse.stream.bytesToString();
+        print("DEBUG: OpenRouter error body: $body");
+        yield StreamChunk(content: "Error: API returned status ${streamedResponse.statusCode}");
         return;
       }
 
@@ -499,13 +517,26 @@ class ApiService {
         for (final line in lines) {
           if (line.startsWith('data: ')) {
             final data = line.substring(6);
-            if (data == '[DONE]') break;
+            if (data == '[DONE]') {
+              yield StreamChunk(isDone: true);
+              break;
+            }
             
             try {
               final json = jsonDecode(data);
-              final content = json['choices'][0]['delta']['content'];
-              if (content != null) {
-                yield content;
+              
+              // Check for content
+              final content = json['choices']?[0]?['delta']?['content'];
+              
+              // Check for usage
+              final usage = json['usage'];
+              
+              if (content != null || usage != null) {
+                yield StreamChunk(
+                  content: content,
+                  promptTokens: usage?['prompt_tokens'],
+                  completionTokens: usage?['completion_tokens'],
+                );
               }
             } catch (e) {
               // Ignore parse errors for partial chunks
@@ -514,11 +545,12 @@ class ApiService {
         }
       }
     } catch (e) {
+      print("DEBUG: OpenRouter exception: $e");
       final errorStr = e.toString();
       if (errorStr.contains('Connection refused') || errorStr.contains('SocketException')) {
-        yield "Error: Connection Failed. Could not reach OpenRouter. Check your internet connection.";
+        yield StreamChunk(content: "Error: Connection Failed. Could not reach OpenRouter. Check your internet connection.");
       } else {
-        yield "Error: $e";
+        yield StreamChunk(content: "Error: $e");
       }
     } finally {
       client.close();
