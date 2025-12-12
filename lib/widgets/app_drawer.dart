@@ -79,31 +79,20 @@ class _AppDrawerState extends State<AppDrawer> {
                                             final chat = filteredChats[index];
                                             final isCurrent = chat.id == chatProvider.currentChat?.id;
                                             
-                                            // Swipe Actions
-                                            return Listener(
-                                                onPointerMove: (event) {
-                                                    // Allow Left Swipe to propagate to drawer close (manual override)
-                                                    if (event.delta.dx < -10) {
-                                                        Navigator.of(context).popUntil((route) => route.settings.name != 'drawer'); 
-                                                        if (Navigator.canPop(context)) {
-                                                            Navigator.pop(context);
-                                                        }
-                                                    }
+                                            // Long Press for Options
+                                            return GestureDetector(
+                                                onLongPress: () {
+                                                    _showSwipeOptions(context, chat.id, chat.title);
                                                 },
-                                                child: Dismissible(
-                                                    key: Key(chat.id),
-                                                    direction: DismissDirection.startToEnd, // Right Swipe Only
-                                                    background: Container(
-                                                        color: Colors.blueGrey,
-                                                        alignment: Alignment.centerLeft,
-                                                        padding: const EdgeInsets.only(left: 20),
-                                                        child: const Icon(Icons.more_horiz, color: Colors.white),
-                                                    ),
-                                                    confirmDismiss: (direction) async {
-                                                        // Swipe Right: Show Options (Edit & Delete)
-                                                        _showSwipeOptions(context, chat.id, chat.title);
-                                                        return false; 
-                                                    },
+                                                child: Container(
+                                                    margin: const EdgeInsets.symmetric(vertical: 2),
+                                                    decoration: isCurrent ? BoxDecoration(
+                                                        borderRadius: BorderRadius.circular(12),
+                                                        border: Border.all(
+                                                            color: Theme.of(context).colorScheme.primary,
+                                                            width: 1.5,
+                                                        ),
+                                                    ) : null,
                                                     child: ListTile(
                                                         contentPadding: const EdgeInsets.symmetric(horizontal: 16),
                                                         leading: chat.isPinned 
