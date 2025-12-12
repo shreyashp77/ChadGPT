@@ -294,7 +294,18 @@ class _ChatScreenState extends State<ChatScreen> {
                              padding: const EdgeInsets.fromLTRB(0, 0, 8, 0),
                              child: Row(
                                children: [
-                                                                                                  
+
+                                // Attachment / Menu Button
+                                  IconButton(
+                                    icon: Icon(
+                                      _useWebSearch ? Icons.public : Icons.add_circle_outline, 
+                                      color: Theme.of(context).colorScheme.primary
+                                    ),
+                                    onPressed: _showAttachmentOptions, 
+                                  ),         
+
+                                  const SizedBox(width: 0),
+
                                  // Grok-style Model Selector Pill
                                  GestureDetector(
                                      onTap: () => _showGrokModelSelector(context),
@@ -307,13 +318,8 @@ class _ChatScreenState extends State<ChatScreen> {
                                          child: Row(
                                              mainAxisSize: MainAxisSize.min,
                                              children: [
-                                                if (_useWebSearch) ...[
-                                                    Icon(Icons.public, size: 14, color: Theme.of(context).colorScheme.primary),
-                                                    const SizedBox(width: 6),
-                                                ] else ...[
-                                                    Icon(Icons.auto_awesome, size: 14, color: Theme.of(context).colorScheme.primary),
-                                                    const SizedBox(width: 6),
-                                                ],
+                                                Icon(Icons.auto_awesome, size: 14, color: Theme.of(context).colorScheme.primary),
+                                                const SizedBox(width: 6),
                                                  
                                                  ConstrainedBox(
                                                      constraints: const BoxConstraints(maxWidth: 90),
@@ -330,17 +336,6 @@ class _ChatScreenState extends State<ChatScreen> {
                                          ),
                                      ),
                                  ),
-
-                                const SizedBox(width: 0),
-
-                                // Attachment / Menu Button
-                                  IconButton(
-                                    icon: Icon(
-                                      _useWebSearch ? Icons.public : Icons.add_circle_outline, 
-                                      color: Theme.of(context).colorScheme.primary
-                                    ),
-                                    onPressed: _showAttachmentOptions, 
-                                  ),
 
                                  const Spacer(),
 
