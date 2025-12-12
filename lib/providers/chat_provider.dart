@@ -385,12 +385,26 @@ class ChatProvider with ChangeNotifier {
          // Generate title asynchronously
          final userContent = content;
          final modelId = _settingsProvider.settings.selectedModelId!;
+         final chatId = _currentChat!.id; // Capture ID to avoid race conditions
+         
          _settingsProvider.apiService.generateTitle(userContent, modelId).then((title) {
-             if (_currentChat != null && _currentChat!.id == _currentChat!.id) {
-                 _currentChat!.title = title;
-                 _dbService.updateChat(_currentChat!);
-                 notifyListeners();
+             // 1. Update in Database
+             // We need to fetch the chat afresh or just update the specific field to be safe,
+             // but since we have the object in memory and it's just a title update:
+             _dbService.renameChat(chatId, title);
+
+             // 2. Update in History List (_chats)
+             final chatInListIndex = _chats.indexWhere((c) => c.id == chatId);
+             if (chatInListIndex != -1) {
+                 _chats[chatInListIndex].title = title;
              }
+
+             // 3. Update Current Chat if still active
+             if (_currentChat != null && _currentChat!.id == chatId) {
+                 _currentChat!.title = title;
+             }
+             
+             notifyListeners();
          });
 
          // Set temporary title first
