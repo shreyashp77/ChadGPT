@@ -294,14 +294,7 @@ class _ChatScreenState extends State<ChatScreen> {
                              padding: const EdgeInsets.fromLTRB(0, 0, 8, 0),
                              child: Row(
                                children: [
-                                 // Attachment / Menu Button
-                                 IconButton(
-                                   icon: Icon(Icons.add_circle_outline, color: Theme.of(context).colorScheme.primary),
-                                   onPressed: _showAttachmentOptions, 
-                                 ),
-                                 
-                                 const SizedBox(width: 0),
-                                 
+                                                                                                  
                                  // Grok-style Model Selector Pill
                                  GestureDetector(
                                      onTap: () => _showGrokModelSelector(context),
@@ -337,6 +330,17 @@ class _ChatScreenState extends State<ChatScreen> {
                                          ),
                                      ),
                                  ),
+
+                                const SizedBox(width: 0),
+
+                                // Attachment / Menu Button
+                                  IconButton(
+                                    icon: Icon(
+                                      _useWebSearch ? Icons.public : Icons.add_circle_outline, 
+                                      color: Theme.of(context).colorScheme.primary
+                                    ),
+                                    onPressed: _showAttachmentOptions, 
+                                  ),
 
                                  const Spacer(),
 
