@@ -29,6 +29,13 @@ class AppTheme {
       Color(0xFFFFD600), // Yellow
       Color(0xFFE91E63), // Pink
       Color(0xFF00BFA5), // Teal
+      Color(0xFFD50000), // Red
+      Color(0xFF304FFE), // Indigo
+      Color(0xFF00B0FF), // Light Blue
+      Color(0xFFFFAB00), // Amber
+      Color(0xFF6200EA), // Deep Purple
+      Color(0xFFAEEA00), // Lime
+      Color(0xFF5D4037), // Brown
   ];
 
   // Dynamic Gradients

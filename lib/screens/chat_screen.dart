@@ -348,6 +348,7 @@ class _ChatScreenState extends State<ChatScreen> {
                                            tooltip = 'Send Message';
                                            onPressed = () {
                                                HapticFeedback.lightImpact();
+                                               FocusScope.of(context).unfocus();
                                                _sendMessage();
                                            };
                                        } else {
