@@ -549,11 +549,11 @@ class _ChatScreenState extends State<ChatScreen> {
           builder: (ctx) => Container(
               margin: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                  color: const Color(0xFF1E1E1E), // Dark background like Grok
+                  color: Theme.of(context).colorScheme.surfaceContainer, // Theme-aware background
                   borderRadius: BorderRadius.circular(24),
-                  border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+                  border: Border.all(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.1)),
                   boxShadow: [
-                      BoxShadow(color: Colors.black.withValues(alpha: 0.5), blurRadius: 20, offset: const Offset(0, 10))
+                      BoxShadow(color: Colors.black.withValues(alpha: 0.2), blurRadius: 20, offset: const Offset(0, 10))
                   ]
               ),
               child: Column(
@@ -564,22 +564,22 @@ class _ChatScreenState extends State<ChatScreen> {
                         child: Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                                const Row(
+                                Row(
                                     children: [
-                                        Icon(Icons.auto_awesome, color: Colors.white, size: 20),
-                                        SizedBox(width: 8),
-                                        Text('Select Model', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                                        Icon(Icons.auto_awesome, color: Theme.of(context).colorScheme.onSurface, size: 20),
+                                        const SizedBox(width: 8),
+                                        Text('Select Model', style: TextStyle(color: Theme.of(context).colorScheme.onSurface, fontSize: 18, fontWeight: FontWeight.bold)),
                                     ],
                                 ),
-                                IconButton(icon: const Icon(Icons.refresh, color: Colors.white70), onPressed: () {
+                                IconButton(icon: Icon(Icons.refresh, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7)), onPressed: () {
                                     settings.fetchModels();
                                     Navigator.pop(ctx);
-                                    _showGrokModelSelector(context); // Reopen to refresh? Or just refresh in bg. Reopening might be jarring.
+                                    _showGrokModelSelector(context); 
                                 }),
                             ],
                         ),
                       ),
-                      const Divider(color: Colors.white10, height: 1),
+                      Divider(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.1), height: 1),
                       ConstrainedBox(
                           constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.4),
                           child: ListView.builder(
@@ -592,11 +592,11 @@ class _ChatScreenState extends State<ChatScreen> {
                                   final displayName = settings.getModelDisplayName(modelId);
                                   
                                   return ListTile(
-                                      title: Text(displayName, style: TextStyle(color: isSelected ? AppTheme.accent : Colors.white70, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
-                                      subtitle: displayName != modelId.split('/').last ? Text(modelId.split('/').last, style: TextStyle(color: Colors.white30, fontSize: 10)) : null,
-                                      leading: isSelected ? const Icon(Icons.check_circle, color: AppTheme.accent) : const Icon(Icons.circle_outlined, color: Colors.white30),
+                                      title: Text(displayName, style: TextStyle(color: isSelected ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7), fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
+                                      subtitle: displayName != modelId.split('/').last ? Text(modelId.split('/').last, style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.3), fontSize: 10)) : null,
+                                      leading: isSelected ? Icon(Icons.check_circle, color: Theme.of(context).colorScheme.primary) : Icon(Icons.circle_outlined, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.3)),
                                       trailing: IconButton(
-                                          icon: const Icon(Icons.edit, size: 16, color: Colors.white30),
+                                          icon: Icon(Icons.edit, size: 16, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.3)),
                                           onPressed: () => _showRenameDialog(context, modelId, displayName),
                                       ),
                                       onTap: () {
@@ -622,11 +622,11 @@ class _ChatScreenState extends State<ChatScreen> {
           builder: (ctx) => Container(
               margin: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                  color: const Color(0xFF1E1E1E), 
+                  color: Theme.of(context).colorScheme.surfaceContainer, // Theme-aware background
                   borderRadius: BorderRadius.circular(24),
-                  border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+                  border: Border.all(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.1)),
                   boxShadow: [
-                      BoxShadow(color: Colors.black.withValues(alpha: 0.5), blurRadius: 20, offset: const Offset(0, 10))
+                      BoxShadow(color: Colors.black.withValues(alpha: 0.2), blurRadius: 20, offset: const Offset(0, 10))
                   ]
               ),
               child: Column(
@@ -637,20 +637,20 @@ class _ChatScreenState extends State<ChatScreen> {
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            const Text('Choose Personality', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                            Text('Choose Personality', style: TextStyle(color: Theme.of(context).colorScheme.onSurface, fontSize: 18, fontWeight: FontWeight.bold)),
                             TextButton.icon(
                                 onPressed: () {
                                     HapticFeedback.lightImpact(); // Haptic
                                     Navigator.pop(ctx);
                                     _showCreatePersonaDialog(context);
                                 },
-                                icon: const Icon(Icons.add, color: AppTheme.accent),
-                                label: const Text('New', style: TextStyle(color: AppTheme.accent)),
+                                icon: Icon(Icons.add, color: Theme.of(context).colorScheme.primary),
+                                label: Text('New', style: TextStyle(color: Theme.of(context).colorScheme.primary)),
                             )
                           ],
                         ),
                       ),
-                      const Divider(color: Colors.white10, height: 1),
+                      Divider(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.1), height: 1),
                       Flexible(
                           child: Consumer<ChatProvider>(
                               builder: (context, chat, _) => ListView.builder(
@@ -665,24 +665,24 @@ class _ChatScreenState extends State<ChatScreen> {
                                       leading: Container(
                                           padding: const EdgeInsets.all(8),
                                           decoration: BoxDecoration(
-                                              color: isSelected ? AppTheme.accent.withValues(alpha: 0.2) : Colors.white.withValues(alpha: 0.05),
+                                              color: isSelected ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.2) : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.05),
                                               borderRadius: BorderRadius.circular(12),
                                           ),
-                                          child: Icon(persona.icon, color: isSelected ? AppTheme.accent : Colors.white70),
+                                          child: Icon(persona.icon, color: isSelected ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7)),
                                       ),
-                                      title: Text(persona.name, style: TextStyle(color: isSelected ? AppTheme.accent : Colors.white, fontWeight: FontWeight.bold)),
-                                      subtitle: Text(persona.description, style: const TextStyle(color: Colors.white54, fontSize: 12)),
+                                      title: Text(persona.name, style: TextStyle(color: isSelected ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.onSurface, fontWeight: FontWeight.bold)),
+                                      subtitle: Text(persona.description, style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.54), fontSize: 12)),
                                       trailing: Row(
                                           mainAxisSize: MainAxisSize.min,
                                           children: [
                                               if (persona.isCustom)
                                                   IconButton(
-                                                      icon: const Icon(Icons.delete_outline, color: Colors.white30, size: 20),
+                                                      icon: Icon(Icons.delete_outline, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.3), size: 20),
                                                       onPressed: () {
                                                           chat.deleteCustomPersona(persona.id);
                                                       },
                                                   ),
-                                              if (isSelected) const Icon(Icons.check_circle, color: AppTheme.accent),
+                                              if (isSelected) Icon(Icons.check_circle, color: Theme.of(context).colorScheme.primary),
                                           ],
                                       ),
                                       onTap: () {
