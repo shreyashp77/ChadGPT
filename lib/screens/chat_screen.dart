@@ -246,146 +246,140 @@ class _ChatScreenState extends State<ChatScreen> {
                         mainAxisSize: MainAxisSize.min,
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                           // Top: TextField
-                           Padding(
-                             padding: const EdgeInsets.symmetric(horizontal: 16),
-                             child: TextField(
-                               controller: _textController,
-                               style: const TextStyle(fontSize: 16),
-                               decoration: const InputDecoration(
-                                 hintText: 'Ask anything',
-                                 border: InputBorder.none,
-                                 isDense: true,
-                                 contentPadding: EdgeInsets.zero,
-                               ),
-                               maxLines: null,
-                               keyboardType: TextInputType.multiline,
-                               textCapitalization: TextCapitalization.sentences,
-                             ),
-                           ),
-                           
-                           const SizedBox(height: 12),
-
-                           // Bottom: Actions Row
-                           Padding(
-                             padding: const EdgeInsets.fromLTRB(0, 0, 8, 0),
-                             child: Row(
-                               children: [
-
-                                // Attachment / Menu Button
-                                  IconButton(
-                                    icon: Icon(
-                                      Icons.add_circle_outline, 
-                                      color: Theme.of(context).colorScheme.primary
-                                    ),
-                                    onPressed: _showAttachmentOptions, 
-                                  ),         
-
-                                  // Active Features Indicator Chips (inline, expandable)
-                                  Expanded(
-                                    child: SingleChildScrollView(
-                                      scrollDirection: Axis.horizontal,
-                                      child: Row(
-                                        children: [
-                                          if (_useWebSearch)
-                                            Padding(
-                                              padding: const EdgeInsets.only(right: 6),
-                                              child: _buildFeatureChip(
-                                                context,
-                                                icon: Icons.public,
-                                                label: 'Search',
-                                                onRemove: () => setState(() => _useWebSearch = false),
-                                              ),
-                                            ),
-                                          if (_pendingAttachmentPath != null)
-                                            Padding(
-                                              padding: const EdgeInsets.only(right: 6),
-                                              child: _buildFeatureChip(
-                                                context,
-                                                icon: _pendingAttachmentType == 'image' ? Icons.image : Icons.attach_file,
-                                                label: _pendingAttachmentPath!.split('/').last,
-                                                onRemove: () => setState(() {
-                                                  _pendingAttachmentPath = null;
-                                                  _pendingAttachmentType = null;
-                                                }),
-                                              ),
-                                            ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-
-                                  const SizedBox(width: 8),
-
-                                 // Action Button: Handles Voice/STT (Default), Sending (HasContent), or Stopping (Generating/Listening)
-                                 Builder(
-                                     builder: (context) {
-                                         final hasContent = _textController.text.trim().isNotEmpty || _pendingAttachmentPath != null;
-                                         final isGenerating = chatProvider.isTyping;
-                                         final isListening = chatProvider.isListening;
-                                         
-                                         // Determine State
-                                         // 1. Generating -> Stop Generation
-                                         // 2. Listening -> Stop Listening
-                                         // 3. Content -> Send Message
-                                         // 4. Empty -> Show Voice Options
-                                         
-                                         IconData icon;
-                                         String tooltip;
-                                         VoidCallback onPressed;
-                                         
-                                         if (isGenerating) {
-                                             icon = Icons.stop;
-                                             tooltip = 'Stop Generating';
-                                             onPressed = () {
-                                                 HapticFeedback.lightImpact();
-                                                 chatProvider.stopGeneration();
-                                             };
-                                         } else if (isListening) {
-                                             icon = Icons.mic_off;
-                                             tooltip = 'Stop Listening';
-                                             onPressed = () {
-                                                 HapticFeedback.lightImpact();
-                                                 chatProvider.stopListening();
-                                             };
-                                         } else if (hasContent) {
-                                             icon = Icons.arrow_upward;
-                                             tooltip = 'Send Message';
-                                             onPressed = () {
-                                                 HapticFeedback.lightImpact();
-                                                 _sendMessage();
-                                             };
-                                         } else {
-                                             icon = Icons.graphic_eq;
-                                             tooltip = 'Voice Options';
-                                             onPressed = () => _showVoiceOptions(context);
-                                         }
-
-                                         return Container(
-                                             key: _actionButtonKey, // Attach Key Here
-                                             decoration: BoxDecoration(
-                                                 shape: BoxShape.circle,
-                                                 color: Theme.of(context).colorScheme.primary, // Solid Primary Color
-                                                 boxShadow: [
-                                                     BoxShadow(
-                                                         color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.5), 
-                                                         blurRadius: 10, 
-                                                         spreadRadius: 2
-                                                     )
-                                                 ]
-                                             ),
-                                             child: IconButton(
-                                                 icon: isListening 
-                                                    ? Icon(icon, color: Colors.white, size: 24).animate(onPlay: (controller) => controller.repeat(reverse: true)).fade(duration: 500.ms, begin: 0.5, end: 1.0)
-                                                    : Icon(icon, color: Colors.white, size: 24),
-                                                 tooltip: tooltip,
-                                                 onPressed: onPressed,
-                                             ),
-                                         );
-                                     }
+                           // Top: Feature Chips (Web Search, Attachments)
+                           if (_useWebSearch || _pendingAttachmentPath != null)
+                             Padding(
+                               padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+                               child: SingleChildScrollView(
+                                 scrollDirection: Axis.horizontal,
+                                 child: Row(
+                                   children: [
+                                     if (_useWebSearch)
+                                       Padding(
+                                         padding: const EdgeInsets.only(right: 6),
+                                         child: _buildFeatureChip(
+                                           context,
+                                           icon: Icons.public,
+                                           label: 'Search',
+                                           onRemove: () => setState(() => _useWebSearch = false),
+                                         ),
+                                       ),
+                                     if (_pendingAttachmentPath != null)
+                                       Padding(
+                                         padding: const EdgeInsets.only(right: 6),
+                                         child: _buildFeatureChip(
+                                           context,
+                                           icon: _pendingAttachmentType == 'image' ? Icons.image : Icons.attach_file,
+                                           label: _pendingAttachmentPath!.split('/').last,
+                                           onRemove: () => setState(() {
+                                             _pendingAttachmentPath = null;
+                                             _pendingAttachmentType = null;
+                                           }),
+                                         ),
+                                       ),
+                                   ],
                                  ),
-                                  ],
+                               ),
                              ),
+
+                           // Main Row: [Plus Button] [Input Field] [Voice Button]
+                           Row(
+                             crossAxisAlignment: CrossAxisAlignment.end,
+                             children: [
+                               // Plus / Attachment Button
+                               IconButton(
+                                 icon: Icon(
+                                   Icons.add_circle_outline, 
+                                   color: Theme.of(context).colorScheme.primary
+                                 ),
+                                 onPressed: _showAttachmentOptions, 
+                               ),
+
+                               // Expanded TextField
+                               Expanded(
+                                 child: TextField(
+                                   controller: _textController,
+                                   style: const TextStyle(fontSize: 16),
+                                   decoration: const InputDecoration(
+                                     hintText: 'Ask anything',
+                                     border: InputBorder.none,
+                                     isDense: true,
+                                     contentPadding: EdgeInsets.symmetric(vertical: 12),
+                                   ),
+                                   maxLines: null,
+                                   keyboardType: TextInputType.multiline,
+                                   textCapitalization: TextCapitalization.sentences,
+                                 ),
+                               ),
+
+                               // Action Button: Handles Voice/STT (Default), Sending (HasContent), or Stopping (Generating/Listening)
+                               Builder(
+                                   builder: (context) {
+                                       final hasContent = _textController.text.trim().isNotEmpty || _pendingAttachmentPath != null;
+                                       final isGenerating = chatProvider.isTyping;
+                                       final isListening = chatProvider.isListening;
+                                       
+                                       // Determine State
+                                       // 1. Generating -> Stop Generation
+                                       // 2. Listening -> Stop Listening
+                                       // 3. Content -> Send Message
+                                       // 4. Empty -> Show Voice Options
+                                       
+                                       IconData icon;
+                                       String tooltip;
+                                       VoidCallback onPressed;
+                                       
+                                       if (isGenerating) {
+                                           icon = Icons.stop;
+                                           tooltip = 'Stop Generating';
+                                           onPressed = () {
+                                               HapticFeedback.lightImpact();
+                                               chatProvider.stopGeneration();
+                                           };
+                                       } else if (isListening) {
+                                           icon = Icons.mic_off;
+                                           tooltip = 'Stop Listening';
+                                           onPressed = () {
+                                               HapticFeedback.lightImpact();
+                                               chatProvider.stopListening();
+                                           };
+                                       } else if (hasContent) {
+                                           icon = Icons.arrow_upward;
+                                           tooltip = 'Send Message';
+                                           onPressed = () {
+                                               HapticFeedback.lightImpact();
+                                               _sendMessage();
+                                           };
+                                       } else {
+                                           icon = Icons.graphic_eq;
+                                           tooltip = 'Voice Options';
+                                           onPressed = () => _showVoiceOptions(context);
+                                       }
+
+                                       return Container(
+                                           key: _actionButtonKey, // Attach Key Here
+                                           decoration: BoxDecoration(
+                                               shape: BoxShape.circle,
+                                               color: Theme.of(context).colorScheme.primary, // Solid Primary Color
+                                               boxShadow: [
+                                                   BoxShadow(
+                                                       color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.5), 
+                                                       blurRadius: 10, 
+                                                       spreadRadius: 2
+                                                   )
+                                               ]
+                                           ),
+                                           child: IconButton(
+                                               icon: isListening 
+                                                  ? Icon(icon, color: Colors.white, size: 24).animate(onPlay: (controller) => controller.repeat(reverse: true)).fade(duration: 500.ms, begin: 0.5, end: 1.0)
+                                                  : Icon(icon, color: Colors.white, size: 24),
+                                               tooltip: tooltip,
+                                               onPressed: onPressed,
+                                           ),
+                                       );
+                                   }
+                               ),
+                             ],
                            ),
                         ],
                       ),
@@ -701,16 +695,28 @@ class _ChatScreenState extends State<ChatScreen> {
       );
   }
 
-  void _showVoiceOptions(BuildContext context) {
+  void _showVoiceOptions(BuildContext context) async {
+      // Dismiss keyboard first to prevent layout glitch
+      FocusScope.of(context).unfocus();
+      
+      // Wait for keyboard to fully dismiss and layout to settle
+      await Future.delayed(const Duration(milliseconds: 300));
+      
+      if (!mounted) return;
+      
+      // Now get the button position AFTER keyboard is dismissed
       final renderBox = _actionButtonKey.currentContext?.findRenderObject() as RenderBox?;
       if (renderBox == null) return;
       
       final buttonPosition = renderBox.localToGlobal(Offset.zero);
       final size = renderBox.size;
       final screenWidth = MediaQuery.of(context).size.width;
+      final screenHeight = MediaQuery.of(context).size.height;
       
-      // Calculate distance from the right edge of the screen
+      // Calculate position dynamically from button
       final rightOffset = screenWidth - (buttonPosition.dx + size.width);
+      // Position popup just above the input field (from button's bottom edge)
+      final bottomOffset = screenHeight - buttonPosition.dy - size.height + 56 + 12; // button bottom + input field height + small gap
 
       Navigator.of(context).push(PageRouteBuilder(
           opaque: false,
@@ -730,7 +736,7 @@ class _ChatScreenState extends State<ChatScreen> {
                        // Floating Options
                        Positioned(
                            right: rightOffset, 
-                           bottom: MediaQuery.of(context).size.height - buttonPosition.dy + 16, 
+                           bottom: bottomOffset, 
                            child: Material(
                                type: MaterialType.transparency,
                                child: Column(
