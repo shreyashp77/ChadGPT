@@ -2,31 +2,49 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../providers/chat_provider.dart';
+import '../services/database_service.dart';
 import '../utils/theme.dart';
 
-class AnalyticsScreen extends StatelessWidget {
+class AnalyticsScreen extends StatefulWidget {
   const AnalyticsScreen({super.key});
+
+  @override
+  State<AnalyticsScreen> createState() => _AnalyticsScreenState();
+}
+
+class _AnalyticsScreenState extends State<AnalyticsScreen> {
+  final DatabaseService _dbService = DatabaseService();
+  
+  int _totalMessages = 0;
+  int _totalPromptTokens = 0;
+  int _totalCompletionTokens = 0;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAnalytics();
+  }
+
+  Future<void> _loadAnalytics() async {
+    final data = await _dbService.getAnalyticsData();
+    if (mounted) {
+      setState(() {
+        _totalMessages = data['totalMessages'] ?? 0;
+        _totalPromptTokens = data['promptTokens'] ?? 0;
+        _totalCompletionTokens = data['completionTokens'] ?? 0;
+        _isLoading = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final chatProvider = context.watch<ChatProvider>();
     final colorScheme = Theme.of(context).colorScheme;
-
-    // Calculate analytics from all chats
-    int totalMessages = 0;
-    int totalPromptTokens = 0;
-    int totalCompletionTokens = 0;
-    int chatCount = chatProvider.chats.length;
+    final chatCount = chatProvider.chats.length;
     
-    for (final chat in chatProvider.chats) {
-      for (final msg in chat.messages) {
-        totalMessages++;
-        if (msg.promptTokens != null) totalPromptTokens += msg.promptTokens!;
-        if (msg.completionTokens != null) totalCompletionTokens += msg.completionTokens!;
-      }
-    }
-    
-    // Current chat stats
+    // Current chat stats (from memory - this works)
     final currentChat = chatProvider.currentChat;
     final currentChatTokens = chatProvider.totalTokensInCurrentChat;
     final currentChatMessages = currentChat?.messages.length ?? 0;
@@ -37,83 +55,94 @@ class AnalyticsScreen extends StatelessWidget {
         title: const Text('Analytics'),
         backgroundColor: Colors.transparent,
         elevation: 0,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: () {
+              setState(() => _isLoading = true);
+              _loadAnalytics();
+            },
+          ),
+        ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Current Session Card
-            _buildSectionTitle(context, 'Current Session'),
-            const SizedBox(height: 12),
-            Row(
+      body: _isLoading 
+        ? const Center(child: CircularProgressIndicator())
+        : SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(
-                  child: _buildStatCard(
-                    context,
-                    icon: Icons.token,
-                    label: 'Tokens',
-                    value: _formatNumber(currentChatTokens),
-                    color: colorScheme.primary,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _buildStatCard(
-                    context,
-                    icon: Icons.chat_bubble_outline,
-                    label: 'Messages',
-                    value: currentChatMessages.toString(),
-                    color: AppTheme.accent,
-                  ),
-                ),
+                // Current Session Card
+                _buildSectionTitle(context, 'Current Session'),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildStatCard(
+                        context,
+                        icon: Icons.token,
+                        label: 'Tokens',
+                        value: _formatNumber(currentChatTokens),
+                        color: colorScheme.primary,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _buildStatCard(
+                        context,
+                        icon: Icons.chat_bubble_outline,
+                        label: 'Messages',
+                        value: currentChatMessages.toString(),
+                        color: AppTheme.accent,
+                      ),
+                    ),
+                  ],
+                ).animate().fadeIn(duration: 300.ms).slideX(begin: -0.1),
+                
+                const SizedBox(height: 24),
+                
+                // All Time Stats
+                _buildSectionTitle(context, 'All Time'),
+                const SizedBox(height: 12),
+                _buildTokenBreakdownCard(
+                  context,
+                  promptTokens: _totalPromptTokens,
+                  completionTokens: _totalCompletionTokens,
+                ).animate().fadeIn(duration: 300.ms, delay: 100.ms).slideX(begin: -0.1),
+                
+                const SizedBox(height: 16),
+                
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildStatCard(
+                        context,
+                        icon: Icons.forum_outlined,
+                        label: 'Chats',
+                        value: chatCount.toString(),
+                        color: Colors.purple,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _buildStatCard(
+                        context,
+                        icon: Icons.message_outlined,
+                        label: 'Messages',
+                        value: _formatNumber(_totalMessages),
+                        color: Colors.orange,
+                      ),
+                    ),
+                  ],
+                ).animate().fadeIn(duration: 300.ms, delay: 200.ms).slideX(begin: -0.1),
+                
+                const SizedBox(height: 24),
+                
+                // Tips Card
+                _buildTipsCard(context).animate().fadeIn(duration: 300.ms, delay: 300.ms).slideY(begin: 0.1),
               ],
-            ).animate().fadeIn(duration: 300.ms).slideX(begin: -0.1),
-            
-            const SizedBox(height: 24),
-            
-            // All Time Stats
-            _buildSectionTitle(context, 'All Time'),
-            const SizedBox(height: 12),
-            _buildTokenBreakdownCard(
-              context,
-              promptTokens: totalPromptTokens,
-              completionTokens: totalCompletionTokens,
-            ).animate().fadeIn(duration: 300.ms, delay: 100.ms).slideX(begin: -0.1),
-            
-            const SizedBox(height: 16),
-            
-            Row(
-              children: [
-                Expanded(
-                  child: _buildStatCard(
-                    context,
-                    icon: Icons.forum_outlined,
-                    label: 'Chats',
-                    value: chatCount.toString(),
-                    color: Colors.purple,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _buildStatCard(
-                    context,
-                    icon: Icons.message_outlined,
-                    label: 'Messages',
-                    value: _formatNumber(totalMessages),
-                    color: Colors.orange,
-                  ),
-                ),
-              ],
-            ).animate().fadeIn(duration: 300.ms, delay: 200.ms).slideX(begin: -0.1),
-            
-            const SizedBox(height: 24),
-            
-            // Tips Card
-            _buildTipsCard(context).animate().fadeIn(duration: 300.ms, delay: 300.ms).slideY(begin: 0.1),
-          ],
-        ),
-      ),
+            ),
+          ),
     );
   }
 
@@ -215,7 +244,6 @@ class AnalyticsScreen extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 16),
-          // Progress bar
           ClipRRect(
             borderRadius: BorderRadius.circular(4),
             child: LinearProgressIndicator(
@@ -297,7 +325,7 @@ class AnalyticsScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Token tracking works best with OpenAI-compatible APIs. Some providers may not return usage data.',
+                  'Token tracking requires API support. LM Studio may need specific model settings to return usage data.',
                   style: TextStyle(
                     fontSize: 12,
                     color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),

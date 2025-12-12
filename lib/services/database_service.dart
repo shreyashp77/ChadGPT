@@ -145,6 +145,38 @@ class DatabaseService {
     return List.generate(maps.length, (i) => Message.fromMap(maps[i]));
   }
 
+  /// Get analytics data - total messages and token counts across all chats
+  Future<Map<String, int>> getAnalyticsData() async {
+    final db = await database;
+    
+    // Count all messages
+    final messageCountResult = await db.rawQuery(
+      'SELECT COUNT(*) as count FROM ${AppConstants.tableNameMessages}'
+    );
+    final totalMessages = Sqflite.firstIntValue(messageCountResult) ?? 0;
+    
+    // Sum all tokens
+    final tokenResult = await db.rawQuery('''
+      SELECT 
+        COALESCE(SUM(prompt_tokens), 0) as promptTokens,
+        COALESCE(SUM(completion_tokens), 0) as completionTokens
+      FROM ${AppConstants.tableNameMessages}
+    ''');
+    
+    final promptTokens = tokenResult.isNotEmpty 
+        ? (tokenResult[0]['promptTokens'] as int? ?? 0) 
+        : 0;
+    final completionTokens = tokenResult.isNotEmpty 
+        ? (tokenResult[0]['completionTokens'] as int? ?? 0) 
+        : 0;
+    
+    return {
+      'totalMessages': totalMessages,
+      'promptTokens': promptTokens,
+      'completionTokens': completionTokens,
+    };
+  }
+
   Future<void> insertMessage(Message message, bool isTempChat) async {
     if (isTempChat) return;
     final db = await database;
