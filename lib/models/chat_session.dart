@@ -8,6 +8,7 @@ class ChatSession {
   List<Message> messages;
   final bool isTemp;
   String? systemPrompt;
+  bool isPinned;
 
   ChatSession({
     required this.id,
@@ -17,6 +18,7 @@ class ChatSession {
     List<Message>? messages,
     this.isTemp = false,
     this.systemPrompt,
+    this.isPinned = false,
   }) : messages = messages ?? [];
 
   Map<String, dynamic> toMap() {
@@ -26,6 +28,7 @@ class ChatSession {
       'created_at': createdAt.toIso8601String(),
       'updated_at': updatedAt.toIso8601String(),
       'system_prompt': systemPrompt,
+      'is_pinned': isPinned ? 1 : 0,
     };
   }
 
@@ -38,6 +41,7 @@ class ChatSession {
       messages: [], // Messages loaded separately
       isTemp: false,
       systemPrompt: map['system_prompt'],
+      isPinned: map['is_pinned'] == 1,
     );
   }
 }

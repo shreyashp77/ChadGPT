@@ -106,6 +106,9 @@ class _AppDrawerState extends State<AppDrawer> {
                                                     },
                                                     child: ListTile(
                                                         contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+                                                        leading: chat.isPinned 
+                                                            ? Icon(Icons.push_pin, size: 16, color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.8))
+                                                            : null,
                                                         title: Text(
                                                             chat.title, 
                                                             maxLines: 1, 
@@ -164,7 +167,7 @@ class _AppDrawerState extends State<AppDrawer> {
                                            child: TextField(
                                                controller: _searchController,
                                                decoration: InputDecoration(
-                                                   hintText: 'Search History', 
+                                                   hintText: 'Search', 
                                                    hintStyle: TextStyle(color: isDark ? Colors.grey : Colors.grey[600]),
                                                    border: InputBorder.none,
                                                    isDense: true,
@@ -268,6 +271,9 @@ class _AppDrawerState extends State<AppDrawer> {
   }
 
   void _showSwipeOptions(BuildContext context, String chatId, String currentTitle) {
+      final chatProvider = context.read<ChatProvider>();
+      final chat = chatProvider.chats.firstWhere((c) => c.id == chatId);
+      
       showModalBottomSheet(
           context: context,
           backgroundColor: const Color(0xFF1E1E1E),
@@ -281,6 +287,20 @@ class _AppDrawerState extends State<AppDrawer> {
                           width: 40,
                           height: 4,
                           decoration: BoxDecoration(color: Colors.grey[700], borderRadius: BorderRadius.circular(2)),
+                      ),
+                      ListTile(
+                          leading: Icon(
+                              chat.isPinned ? Icons.push_pin_outlined : Icons.push_pin,
+                              color: Colors.amber,
+                          ),
+                          title: Text(
+                              chat.isPinned ? 'Unpin Chat' : 'Pin to Top',
+                              style: const TextStyle(color: Colors.white),
+                          ),
+                          onTap: () {
+                              Navigator.pop(ctx);
+                              chatProvider.togglePinChat(chatId);
+                          },
                       ),
                       ListTile(
                           leading: const Icon(Icons.edit, color: Colors.blueAccent),

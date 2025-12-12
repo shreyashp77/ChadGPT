@@ -24,7 +24,7 @@ class DatabaseService {
     String path = join(await getDatabasesPath(), AppConstants.dbName);
     return await openDatabase(
       path,
-      version: 3, // Incremented for token tracking
+      version: 4, // Incremented for pin chat feature
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -37,7 +37,8 @@ class DatabaseService {
         title TEXT,
         created_at TEXT,
         updated_at TEXT,
-        system_prompt TEXT
+        system_prompt TEXT,
+        is_pinned INTEGER DEFAULT 0
       )
     ''');
     
@@ -81,6 +82,15 @@ class DatabaseService {
            await db.execute('ALTER TABLE ${AppConstants.tableNameMessages} ADD COLUMN is_edited INTEGER DEFAULT 0');
        }
     }
+    if (oldVersion < 4) {
+       // Add is_pinned column for pin chat feature
+       final columns = await db.rawQuery('PRAGMA table_info(${AppConstants.tableNameChats})');
+       final columnNames = columns.map((c) => c['name']).toSet();
+       
+       if (!columnNames.contains('is_pinned')) {
+           await db.execute('ALTER TABLE ${AppConstants.tableNameChats} ADD COLUMN is_pinned INTEGER DEFAULT 0');
+       }
+    }
   }
 
   // Chat Operations
@@ -88,7 +98,7 @@ class DatabaseService {
     final db = await database;
     final List<Map<String, dynamic>> maps = await db.query(
       AppConstants.tableNameChats,
-      orderBy: 'updated_at DESC',
+      orderBy: 'is_pinned DESC, updated_at DESC',
     );
     return List.generate(maps.length, (i) => ChatSession.fromMap(maps[i]));
   }
@@ -120,6 +130,16 @@ class DatabaseService {
       AppConstants.tableNameChats,
       where: 'id = ?',
       whereArgs: [id],
+    );
+  }
+
+  Future<void> togglePinChat(String id, bool isPinned) async {
+    final db = await database;
+    await db.update(
+        AppConstants.tableNameChats,
+        {'is_pinned': isPinned ? 1 : 0},
+        where: 'id = ?',
+        whereArgs: [id],
     );
   }
 

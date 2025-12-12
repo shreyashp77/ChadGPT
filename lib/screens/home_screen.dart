@@ -38,6 +38,108 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
      );
   }
 
+  void _showChatContextMenu(BuildContext context, chat, Offset position) {
+    final chatProvider = context.read<ChatProvider>();
+    final RenderBox overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
+    
+    showMenu(
+      context: context,
+      position: RelativeRect.fromRect(
+        Rect.fromLTWH(position.dx, position.dy, 0, 0),
+        Offset.zero & overlay.size,
+      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      items: [
+        PopupMenuItem(
+          onTap: () {
+            chatProvider.togglePinChat(chat.id);
+          },
+          child: Row(
+            children: [
+              Icon(
+                chat.isPinned ? Icons.push_pin_outlined : Icons.push_pin,
+                size: 20,
+                color: Theme.of(context).colorScheme.primary,
+              ),
+              const SizedBox(width: 12),
+              Text(chat.isPinned ? 'Unpin' : 'Pin to top'),
+            ],
+          ),
+        ),
+        PopupMenuItem(
+          onTap: () {
+            _showRenameDialog(context, chat, chatProvider);
+          },
+          child: Row(
+            children: [
+              Icon(Icons.edit_outlined, size: 20, color: Theme.of(context).colorScheme.primary),
+              const SizedBox(width: 12),
+              const Text('Rename'),
+            ],
+          ),
+        ),
+        PopupMenuItem(
+          onTap: () async {
+            final confirm = await showDialog<bool>(
+              context: context,
+              builder: (ctx) => AlertDialog(
+                title: const Text('Delete Chat?'),
+                content: const Text('This action cannot be undone.'),
+                actions: [
+                  TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+                  TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Delete', style: TextStyle(color: Colors.red))),
+                ],
+              ),
+            );
+            if (confirm == true) {
+              chatProvider.deleteChat(chat.id);
+            }
+          },
+          child: const Row(
+            children: [
+              Icon(Icons.delete_outline, size: 20, color: Colors.red),
+              SizedBox(width: 12),
+              Text('Delete', style: TextStyle(color: Colors.red)),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _showRenameDialog(BuildContext context, chat, ChatProvider chatProvider) {
+    final controller = TextEditingController(text: chat.title);
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Rename Chat'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(
+            hintText: 'Enter new name',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              if (controller.text.trim().isNotEmpty) {
+                chatProvider.renameChat(chat.id, controller.text.trim());
+              }
+              Navigator.pop(ctx);
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -104,42 +206,59 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                             ),
                           );
                         },
-                        child: Container(
-                            decoration: BoxDecoration(
-                                color: Theme.of(context).cardTheme.color ?? Theme.of(context).colorScheme.surfaceContainer,
-                                borderRadius: BorderRadius.circular(16),
-                                border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
-                                boxShadow: [
-                                    BoxShadow(
-                                        color: Colors.black.withValues(alpha: 0.05),
-                                        blurRadius: 10,
-                                        offset: const Offset(0, 4),
-                                    )
-                                ]
-                            ),
-                            child: ListTile(
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                              leading: CircleAvatar(
-                                backgroundColor: AppTheme.primaryLight.withValues(alpha: 0.2),
-                                child: const Icon(Icons.chat_bubble_outline, color: AppTheme.primaryLight),
-                              ),
-                              title: Text(
-                                chat.title,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
-                              ),
-                              subtitle: Text(
-                                DateFormat.yMMMd().add_jm().format(chat.updatedAt),
-                                style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.grey),
-                              ),
-                              onTap: () {
-                                chatProvider.loadChat(chat.id);
-                                Navigator.pushReplacement(
-                                  context,
-                                  MaterialPageRoute(builder: (_) => const ChatScreen()),
-                                );
-                              },
+                        child: GestureDetector(
+                            onLongPressStart: (details) {
+                              _showChatContextMenu(context, chat, details.globalPosition);
+                            },
+                            child: Container(
+                                decoration: BoxDecoration(
+                                    color: Theme.of(context).cardTheme.color ?? Theme.of(context).colorScheme.surfaceContainer,
+                                    borderRadius: BorderRadius.circular(16),
+                                    border: Border.all(color: chat.isPinned 
+                                        ? AppTheme.primaryLight.withValues(alpha: 0.3)
+                                        : Colors.white.withValues(alpha: 0.05)),
+                                    boxShadow: [
+                                        BoxShadow(
+                                            color: Colors.black.withValues(alpha: 0.05),
+                                            blurRadius: 10,
+                                            offset: const Offset(0, 4),
+                                        )
+                                    ]
+                                ),
+                                child: ListTile(
+                                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                  leading: CircleAvatar(
+                                    backgroundColor: AppTheme.primaryLight.withValues(alpha: 0.2),
+                                    child: const Icon(Icons.chat_bubble_outline, color: AppTheme.primaryLight),
+                                  ),
+                                  title: Row(
+                                    children: [
+                                      if (chat.isPinned) ...[
+                                        Icon(Icons.push_pin, size: 14, color: AppTheme.primaryLight.withValues(alpha: 0.8)),
+                                        const SizedBox(width: 6),
+                                      ],
+                                      Expanded(
+                                        child: Text(
+                                          chat.title,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  subtitle: Text(
+                                    DateFormat.yMMMd().add_jm().format(chat.updatedAt),
+                                    style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.grey),
+                                  ),
+                                  onTap: () {
+                                    chatProvider.loadChat(chat.id);
+                                    Navigator.pushReplacement(
+                                      context,
+                                      MaterialPageRoute(builder: (_) => const ChatScreen()),
+                                    );
+                                  },
+                                ),
                             ),
                         ).animate().fadeIn(delay: (30 * index).ms).slideX(begin: 0.1, end: 0),
                       );

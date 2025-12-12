@@ -324,6 +324,29 @@ class ChatProvider with ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> togglePinChat(String chatId) async {
+    final chatIndex = _chats.indexWhere((c) => c.id == chatId);
+    if (chatIndex == -1) return;
+    
+    final chat = _chats[chatIndex];
+    final newPinState = !chat.isPinned;
+    
+    // Update database
+    await _dbService.togglePinChat(chatId, newPinState);
+    
+    // Update local state
+    chat.isPinned = newPinState;
+    
+    // Re-sort the list (pinned first, then by date)
+    _chats.sort((a, b) {
+      if (a.isPinned && !b.isPinned) return -1;
+      if (!a.isPinned && b.isPinned) return 1;
+      return b.updatedAt.compareTo(a.updatedAt);
+    });
+    
+    notifyListeners();
+  }
+
   bool _abortGeneration = false;
 
   void stopGeneration() {
