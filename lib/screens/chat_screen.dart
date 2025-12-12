@@ -399,86 +399,157 @@ class _ChatScreenState extends State<ChatScreen> {
 
 
 
-  void _showAttachmentOptions() {
+  void _showAttachmentOptions() async {
       final settingsProvider = context.read<SettingsProvider>();
-      showModalBottomSheet(context: context, builder: (ctx) => Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-              // Model Selector at the top
-              ListTile(
-                  leading: const Icon(Icons.auto_awesome),
-                  title: Text('Model: ${settingsProvider.getModelDisplayName(settingsProvider.settings.selectedModelId ?? '')}'),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () {
-                      Navigator.pop(ctx);
-                      _showGrokModelSelector(context);
-                  },
-              ),
-              const Divider(),
-              ListTile(
-                  leading: const Icon(Icons.image),
-                  title: const Text('Image from Gallery'),
-                  onTap: () async {
-                      Navigator.pop(ctx);
-                      final result = await ImagePicker().pickImage(source: ImageSource.gallery);
-                      if (result != null) {
-                          setState(() {
-                              _pendingAttachmentPath = result.path;
-                              _pendingAttachmentType = 'image';
-                          });
-                      }
-                  },
-              ),
-              ListTile(
-                  leading: const Icon(Icons.camera_alt),
-                  title: const Text('Take Photo'),
-                  onTap: () async {
-                      Navigator.pop(ctx);
-                      final result = await ImagePicker().pickImage(source: ImageSource.camera);
-                      if (result != null) {
-                          setState(() {
-                              _pendingAttachmentPath = result.path;
-                              _pendingAttachmentType = 'image';
-                          });
-                      }
-                  },
-              ),
-              ListTile(
-                  leading: const Icon(Icons.file_present),
-                  title: const Text('File'),
-                  onTap: () async {
-                      Navigator.pop(ctx);
-                      final result = await FilePicker.platform.pickFiles();
-                      if (result != null && result.files.single.path != null) {
-                          setState(() {
-                              _pendingAttachmentPath = result.files.single.path!;
-                              _pendingAttachmentType = 'file';
-                          });
-                      }
-                  },
-              ),
-              const Divider(),
-              ListTile(
-                  leading: Icon(Icons.public, color: _useWebSearch ? AppTheme.accent : null),
-                  title: Text(_useWebSearch ? 'Disable Web Search' : 'Enable Web Search'),
-                  trailing: Switch(
-                      value: _useWebSearch, 
-                      onChanged: (val) {
-                          Navigator.pop(ctx);
-                          setState(() {
-                              _useWebSearch = val;
-                          });
-                      }
-                  ),
-                  onTap: () {
-                      Navigator.pop(ctx);
-                      setState(() {
-                          _useWebSearch = !_useWebSearch;
-                      });
-                  },
-              ),
-              const SizedBox(height: 16),
-          ],
+      
+      // Dismiss keyboard first
+      FocusScope.of(context).unfocus();
+      await Future.delayed(const Duration(milliseconds: 300));
+      
+      if (!mounted) return;
+
+      // Get position for the plus button (left side)
+      final screenHeight = MediaQuery.of(context).size.height;
+      // Add extra space if pills are visible
+      final pillsVisible = _useWebSearch || _pendingAttachmentPath != null;
+      final bottomOffset = MediaQuery.of(context).padding.bottom + 16 + 56 + 16 + (pillsVisible ? 32 : 0);
+      const leftOffset = 16.0 + 8.0;
+
+      Navigator.of(context).push(PageRouteBuilder(
+          opaque: false,
+          barrierDismissible: true,
+          barrierColor: Colors.transparent,
+          pageBuilder: (context, animation, secondaryAnimation) {
+               return Stack(
+                   children: [
+                       // Backdrop with semi-transparent dark overlay for readability
+                       Positioned.fill(
+                           child: GestureDetector(
+                               onTap: () {
+                                   FocusScope.of(context).unfocus();
+                                   Navigator.pop(context);
+                               },
+                               behavior: HitTestBehavior.opaque,
+                               child: Container(color: Colors.black.withValues(alpha: 0.4)),
+                           ),
+                       ),
+                       // Floating Options
+                       Positioned(
+                           left: leftOffset, 
+                           bottom: bottomOffset, 
+                           child: Material(
+                               type: MaterialType.transparency,
+                               child: Column(
+                                   mainAxisSize: MainAxisSize.min,
+                                   crossAxisAlignment: CrossAxisAlignment.start,
+                                   children: [
+                                       // Model Selector
+                                       _buildFloatingOption(
+                                           context,
+                                           icon: Icons.auto_awesome,
+                                           label: settingsProvider.getModelDisplayName(settingsProvider.settings.selectedModelId ?? ''),
+                                           bgColor: Theme.of(context).colorScheme.primary,
+                                           iconColor: Colors.white,
+                                           onTap: () {
+                                               Navigator.pop(context);
+                                               HapticFeedback.lightImpact();
+                                               _showGrokModelSelector(context);
+                                           },
+                                           alignLeft: true,
+                                       ).animate().slideY(begin: 0.5, end: 0, duration: 200.ms).fadeIn(),
+                                       
+                                       const SizedBox(height: 10),
+
+                                       // Web Search Toggle
+                                       _buildFloatingOption(
+                                           context,
+                                           icon: Icons.public,
+                                           label: _useWebSearch ? 'Search On' : 'Web Search',
+                                           bgColor: _useWebSearch ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.surfaceContainerHighest,
+                                           iconColor: _useWebSearch ? Colors.white : Theme.of(context).colorScheme.onSurface,
+                                           onTap: () {
+                                               Navigator.pop(context);
+                                               HapticFeedback.lightImpact();
+                                               setState(() => _useWebSearch = !_useWebSearch);
+                                           },
+                                           alignLeft: true,
+                                       ).animate().slideY(begin: 0.5, end: 0, duration: 200.ms, delay: 50.ms).fadeIn(),
+                                       
+                                       const SizedBox(height: 10),
+
+                                       // Image from Gallery
+                                       _buildFloatingOption(
+                                           context,
+                                           icon: Icons.image,
+                                           label: 'Gallery',
+                                           bgColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+                                           iconColor: Theme.of(context).colorScheme.onSurface,
+                                           onTap: () async {
+                                               Navigator.pop(context);
+                                               HapticFeedback.lightImpact();
+                                               final result = await ImagePicker().pickImage(source: ImageSource.gallery);
+                                               if (result != null) {
+                                                   setState(() {
+                                                       _pendingAttachmentPath = result.path;
+                                                       _pendingAttachmentType = 'image';
+                                                   });
+                                               }
+                                           },
+                                           alignLeft: true,
+                                       ).animate().slideY(begin: 0.5, end: 0, duration: 200.ms, delay: 100.ms).fadeIn(),
+                                       
+                                       const SizedBox(height: 10),
+
+                                       // Camera
+                                       _buildFloatingOption(
+                                           context,
+                                           icon: Icons.camera_alt,
+                                           label: 'Camera',
+                                           bgColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+                                           iconColor: Theme.of(context).colorScheme.onSurface,
+                                           onTap: () async {
+                                               Navigator.pop(context);
+                                               HapticFeedback.lightImpact();
+                                               final result = await ImagePicker().pickImage(source: ImageSource.camera);
+                                               if (result != null) {
+                                                   setState(() {
+                                                       _pendingAttachmentPath = result.path;
+                                                       _pendingAttachmentType = 'image';
+                                                   });
+                                               }
+                                           },
+                                           alignLeft: true,
+                                       ).animate().slideY(begin: 0.5, end: 0, duration: 200.ms, delay: 150.ms).fadeIn(),
+                                       
+                                       const SizedBox(height: 10),
+
+                                       // File
+                                       _buildFloatingOption(
+                                           context,
+                                           icon: Icons.attach_file,
+                                           label: 'File',
+                                           bgColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+                                           iconColor: Theme.of(context).colorScheme.onSurface,
+                                           onTap: () async {
+                                               Navigator.pop(context);
+                                               HapticFeedback.lightImpact();
+                                               final result = await FilePicker.platform.pickFiles();
+                                               if (result != null && result.files.single.path != null) {
+                                                   setState(() {
+                                                       _pendingAttachmentPath = result.files.single.path!;
+                                                       _pendingAttachmentType = 'file';
+                                                   });
+                                               }
+                                           },
+                                           alignLeft: true,
+                                       ).animate().slideY(begin: 0.5, end: 0, duration: 200.ms, delay: 200.ms).fadeIn(),
+                                   ],
+                               ),
+                           ),
+                       ),
+                   ],
+               );
+          },
       ));
   }
 
@@ -715,8 +786,10 @@ class _ChatScreenState extends State<ChatScreen> {
       
       // Calculate position dynamically from button
       final rightOffset = screenWidth - (buttonPosition.dx + size.width);
-      // Position popup just above the input field (from button's bottom edge)
-      final bottomOffset = screenHeight - buttonPosition.dy - size.height + 56 + 12; // button bottom + input field height + small gap
+      // Use same fixed offset calculation as plus menu for consistency
+      // Add extra space if pills are visible
+      final pillsVisible = _useWebSearch || _pendingAttachmentPath != null;
+      final bottomOffset = MediaQuery.of(context).padding.bottom + 16 + 80 + 16 + (pillsVisible ? 32 : 0);
 
       Navigator.of(context).push(PageRouteBuilder(
           opaque: false,
@@ -725,15 +798,15 @@ class _ChatScreenState extends State<ChatScreen> {
           pageBuilder: (context, animation, secondaryAnimation) {
                return Stack(
                    children: [
-                       // Backdrop
+                       // Backdrop with semi-transparent dark overlay for readability
                        Positioned.fill(
                            child: GestureDetector(
                                onTap: () {
                                    FocusScope.of(context).unfocus();
                                    Navigator.pop(context);
                                },
-                               behavior: HitTestBehavior.opaque, // Absorb taps, don't pass through
-                               child: Container(color: Colors.transparent),
+                               behavior: HitTestBehavior.opaque,
+                               child: Container(color: Colors.black.withValues(alpha: 0.4)),
                            ),
                        ),
                        // Floating Options
@@ -801,43 +874,44 @@ class _ChatScreenState extends State<ChatScreen> {
       ));
   }
   
-  Widget _buildFloatingOption(BuildContext context, {required IconData icon, required String label, required VoidCallback onTap, required Color bgColor, required Color iconColor}) {
-       return Row(
-           mainAxisAlignment: MainAxisAlignment.end, 
-           mainAxisSize: MainAxisSize.min, 
-           children: [
-              // Label Pill
-              Container(
-                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                 decoration: BoxDecoration(
-                     color: const Color(0xFF1E1E1E).withValues(alpha: 0.8), // Dark blurred look
-                     borderRadius: BorderRadius.circular(20),
-                     border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
-                     boxShadow: [
-                         BoxShadow(color: Colors.black.withValues(alpha: 0.2), blurRadius: 8, offset: const Offset(0, 2))
-                     ]
-                 ),
-                 child: Text(label, style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600)),
+  Widget _buildFloatingOption(BuildContext context, {required IconData icon, required String label, required VoidCallback onTap, required Color bgColor, required Color iconColor, bool alignLeft = false}) {
+       final labelWidget = Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+              color: const Color(0xFF1E1E1E).withValues(alpha: 0.8),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+              boxShadow: [
+                  BoxShadow(color: Colors.black.withValues(alpha: 0.2), blurRadius: 8, offset: const Offset(0, 2))
+              ]
+          ),
+          child: Text(label, style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600)),
+       );
+       
+       final buttonWidget = Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                  color: bgColor, 
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                      BoxShadow(color: Colors.black.withValues(alpha: 0.3), blurRadius: 8, offset: const Offset(0, 4))
+                  ]
               ),
-              const SizedBox(width: 12),
-              
-              // Mini Action Button
-              GestureDetector(
-                onTap: onTap,
-                child: Container(
-                     width: 48,
-                     height: 48,
-                     decoration: BoxDecoration(
-                         color: bgColor, 
-                         shape: BoxShape.circle,
-                         boxShadow: [
-                             BoxShadow(color: Colors.black.withValues(alpha: 0.3), blurRadius: 8, offset: const Offset(0, 4))
-                         ]
-                     ),
-                     child: Icon(icon, color: iconColor, size: 22),
-                ),
-              ),
-       ],
+              child: Icon(icon, color: iconColor, size: 22),
+       );
+       
+       // Wrap entire row in GestureDetector so both icon and label are tappable
+       return GestureDetector(
+           onTap: onTap,
+           behavior: HitTestBehavior.opaque,
+           child: Row(
+               mainAxisAlignment: alignLeft ? MainAxisAlignment.start : MainAxisAlignment.end, 
+               mainAxisSize: MainAxisSize.min, 
+               children: alignLeft 
+                   ? [buttonWidget, const SizedBox(width: 12), labelWidget]
+                   : [labelWidget, const SizedBox(width: 12), buttonWidget],
+           ),
        );
   }
 
