@@ -90,6 +90,11 @@ class _ChatScreenState extends State<ChatScreen> {
     final chatProvider = context.watch<ChatProvider>();
     final currentChat = chatProvider.currentChat;
 
+    // Auto-scroll to bottom if generating
+    if (chatProvider.isTyping) {
+       _scrollToBottom();
+    }
+
     return Scaffold(
       backgroundColor: chatProvider.isTempMode ? const Color(0xFF202124) : null, // Darker background for Incognito
       extendBodyBehindAppBar: true,
