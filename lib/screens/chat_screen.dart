@@ -728,8 +728,11 @@ class _ChatScreenState extends State<ChatScreen> {
                        // Backdrop
                        Positioned.fill(
                            child: GestureDetector(
-                               onTap: () => Navigator.pop(context),
-                               behavior: HitTestBehavior.translucent,
+                               onTap: () {
+                                   FocusScope.of(context).unfocus();
+                                   Navigator.pop(context);
+                               },
+                               behavior: HitTestBehavior.opaque, // Absorb taps, don't pass through
                                child: Container(color: Colors.transparent),
                            ),
                        ),
