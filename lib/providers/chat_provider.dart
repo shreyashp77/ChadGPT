@@ -505,6 +505,10 @@ class ChatProvider with ChangeNotifier {
   }
 
   Future<void> _generateAssistantResponse(String userPrompt, {bool useWebSearch = false}) async {
+    // Capture the current chat at the start of generation
+    final targetChat = _currentChat;
+    if (targetChat == null) return;
+
     _abortGeneration = false; // Reset abort flag
     _isTyping = true;
     _generationStartTime = DateTime.now();
@@ -512,7 +516,6 @@ class ChatProvider with ChangeNotifier {
 
     // Prepare for response
     final assistantMsgId = const Uuid().v4();
-    // DELAYED: final assistantMsg = Message(...) -> We wait for first chunk now
     
     // Track token usage
     int? promptTokens;
@@ -532,10 +535,10 @@ class ChatProvider with ChangeNotifier {
 
       final stream = _settingsProvider.apiService.chatCompletionStream(
         modelId: _settingsProvider.settings.selectedModelId!,
-        // Pass all current messages (assistant message hasn't been added yet, so this is correct)
-        messages: _currentChat!.messages, 
+        // Pass all current messages from the TARGET chat
+        messages: targetChat.messages, 
         searchResults: searchResults,
-        systemPrompt: _currentChat!.systemPrompt,
+        systemPrompt: targetChat.systemPrompt,
       );
 
       String fullResponse = "";
@@ -555,18 +558,20 @@ class ChatProvider with ChangeNotifier {
           if (!hasAddedMessage) {
               final assistantMsg = Message(
                 id: assistantMsgId,
-                chatId: _currentChat!.id,
+                chatId: targetChat.id,
                 role: MessageRole.assistant,
                 content: '', // Start empty
                 timestamp: DateTime.now(),
               );
-              _currentChat!.messages.add(assistantMsg);
+              targetChat.messages.add(assistantMsg);
               hasAddedMessage = true;
           }
 
           fullResponse += chunk.content!;
           
           // Voice Mode: Streaming TTS
+          // Note: Voice mode logic might still rely on "isListening" or global state, 
+          // but sticking to targetChat for message data is key.
           if (_isContinuousVoiceMode) {
                sentenceBuffer += chunk.content!;
                
@@ -585,13 +590,20 @@ class ChatProvider with ChangeNotifier {
           }
           
           // Update the message in the list
-          _currentChat!.messages.last = Message(
-            id: assistantMsgId,
-            chatId: _currentChat!.id,
-            role: MessageRole.assistant,
-            content: fullResponse,
-            timestamp: DateTime.now(),
-          );
+          // We need to find the message in the targetChat to be safe, or just use `.last` if we are sure
+          // Since we are the only ones adding to THIS chat's end during generation (usually), .last is okay,
+          // but purely for safety, let's make sure we are editing the right instance if reference changed?
+          // No, targetChat.messages is a reference to the list.
+          
+          if (targetChat.messages.isNotEmpty && targetChat.messages.last.id == assistantMsgId) {
+             targetChat.messages.last = Message(
+                id: assistantMsgId,
+                chatId: targetChat.id,
+                role: MessageRole.assistant,
+                content: fullResponse,
+                timestamp: DateTime.now(),
+              );
+          }
 
           // Throttled Haptic Feedback
           if (!_isContinuousVoiceMode) {
@@ -614,15 +626,17 @@ class ChatProvider with ChangeNotifier {
       
       if (hasAddedMessage) {
           // Update final message with token counts
-          _currentChat!.messages.last = _currentChat!.messages.last.copyWith(
-            promptTokens: promptTokens,
-            completionTokens: completionTokens,
-          );
-          
-          // Save assistant message to DB
-          if (!_isTempMode) {
-             await _dbService.insertMessage(_currentChat!.messages.last, false);
-          }
+           if (targetChat.messages.isNotEmpty && targetChat.messages.last.id == assistantMsgId) {
+              targetChat.messages.last = targetChat.messages.last.copyWith(
+                promptTokens: promptTokens,
+                completionTokens: completionTokens,
+              );
+              
+              // Save assistant message to DB
+              if (!targetChat.isTemp) {
+                 await _dbService.insertMessage(targetChat.messages.last, false);
+              }
+           }
       }
 
       // Voice Mode: Speak remaining buffer (if any)
@@ -631,14 +645,20 @@ class ChatProvider with ChangeNotifier {
       }
 
     } catch (e) {
-      _currentChat!.messages.add(Message(
+      targetChat.messages.add(Message(
         id: const Uuid().v4(),
-        chatId: _currentChat!.id,
+        chatId: targetChat.id,
         role: MessageRole.system,
         content: "Error: $e",
         timestamp: DateTime.now(),
       ));
     } finally {
+      // Only turn off typing if we are still viewing the same chat? 
+      // Or just turn it off globally? 
+      // The _isTyping flag is global in this provider. If we switch chats, the new chat might not be typing.
+      // But we can't easily validly know if "another" chat is typing. 
+      // For now, turning it off globally is the safest existing behavior, 
+      // though it might hide the typing indicator if we switched back to the generating chat.
       _isTyping = false;
       _generationStartTime = null;
       notifyListeners();
