@@ -287,7 +287,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             message = 'Connected! Found ${settingsProvider.availableModels.length} models.';
                           }
                         } else {
-                          message = 'Error: ${settingsProvider.error}';
+                          final cleanError = settingsProvider.error!.replaceAll('Exception: ', '');
+                          message = 'Error: $cleanError';
                         }
                         scaffoldMessenger.showSnackBar(
                             SnackBar(

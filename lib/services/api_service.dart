@@ -25,6 +25,10 @@ class ApiService {
         throw Exception('Failed to load models: ${response.statusCode}');
       }
     } catch (e) {
+      final errorStr = e.toString();
+      if (errorStr.contains('Connection refused') || errorStr.contains('SocketException')) {
+        throw Exception('Connection Refused: Ensure LM Studio is running and reachable at ${settings.lmStudioUrl}');
+      }
       throw Exception('Failed to connect to LM Studio: $e');
     }
   }
@@ -65,6 +69,10 @@ class ApiService {
         throw Exception('Failed to load models: ${response.statusCode}');
       }
     } catch (e) {
+      final errorStr = e.toString();
+      if (errorStr.contains('Connection refused') || errorStr.contains('SocketException')) {
+         throw Exception('Connection Failed: Could not reach OpenRouter. Check your internet connection.');
+      }
       throw Exception('Failed to connect to OpenRouter: $e');
     }
   }
@@ -245,7 +253,12 @@ class ApiService {
         }
       }
     } catch (e) {
-      yield "Error: $e";
+      final errorStr = e.toString();
+      if (errorStr.contains('Connection refused') || errorStr.contains('SocketException')) {
+        yield "Error: Connection Refused. Check if LM Studio is running at ${settings.lmStudioUrl}";
+      } else {
+        yield "Error: $e";
+      }
     } finally {
       client.close();
     }
@@ -349,7 +362,12 @@ class ApiService {
         }
       }
     } catch (e) {
-      yield "Error: $e";
+      final errorStr = e.toString();
+      if (errorStr.contains('Connection refused') || errorStr.contains('SocketException')) {
+        yield "Error: Connection Failed. Could not reach OpenRouter. Check your internet connection.";
+      } else {
+        yield "Error: $e";
+      }
     } finally {
       client.close();
     }
