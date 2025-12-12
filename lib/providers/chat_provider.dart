@@ -498,20 +498,14 @@ class ChatProvider with ChangeNotifier {
 
     // Prepare for response
     final assistantMsgId = const Uuid().v4();
-    final assistantMsg = Message(
-      id: assistantMsgId,
-      chatId: _currentChat!.id,
-      role: MessageRole.assistant,
-      content: '', // Start empty
-      timestamp: DateTime.now(),
-    );
+    // DELAYED: final assistantMsg = Message(...) -> We wait for first chunk now
     
-    _currentChat!.messages.add(assistantMsg);
-    notifyListeners();
-
     // Track token usage
     int? promptTokens;
     int? completionTokens;
+    
+    // Flag to track if we've started receiving content and added the message
+    bool hasAddedMessage = false;
 
     try {
       // Check for web search
@@ -524,7 +518,8 @@ class ChatProvider with ChangeNotifier {
 
       final stream = _settingsProvider.apiService.chatCompletionStream(
         modelId: _settingsProvider.settings.selectedModelId!,
-        messages: _currentChat!.messages.where((m) => m.id != assistantMsgId).toList(), 
+        // Pass all current messages (assistant message hasn't been added yet, so this is correct)
+        messages: _currentChat!.messages, 
         searchResults: searchResults,
         systemPrompt: _currentChat!.systemPrompt,
       );
@@ -542,6 +537,19 @@ class ChatProvider with ChangeNotifier {
         
         // Handle content
         if (chunk.content != null) {
+          // ON FIRST CHUNK: Add the message to the list
+          if (!hasAddedMessage) {
+              final assistantMsg = Message(
+                id: assistantMsgId,
+                chatId: _currentChat!.id,
+                role: MessageRole.assistant,
+                content: '', // Start empty
+                timestamp: DateTime.now(),
+              );
+              _currentChat!.messages.add(assistantMsg);
+              hasAddedMessage = true;
+          }
+
           fullResponse += chunk.content!;
           
           // Voice Mode: Streaming TTS
@@ -590,15 +598,17 @@ class ChatProvider with ChangeNotifier {
         }
       }
       
-      // Update final message with token counts
-      _currentChat!.messages.last = _currentChat!.messages.last.copyWith(
-        promptTokens: promptTokens,
-        completionTokens: completionTokens,
-      );
-      
-      // Save assistant message to DB
-      if (!_isTempMode) {
-         await _dbService.insertMessage(_currentChat!.messages.last, false);
+      if (hasAddedMessage) {
+          // Update final message with token counts
+          _currentChat!.messages.last = _currentChat!.messages.last.copyWith(
+            promptTokens: promptTokens,
+            completionTokens: completionTokens,
+          );
+          
+          // Save assistant message to DB
+          if (!_isTempMode) {
+             await _dbService.insertMessage(_currentChat!.messages.last, false);
+          }
       }
 
       // Voice Mode: Speak remaining buffer (if any)

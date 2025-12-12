@@ -34,14 +34,18 @@ class _ChatScreenState extends State<ChatScreen> {
 
   bool _useWebSearch = false; // Local state for search
 
-  void _scrollToBottom() {
+  void _scrollToBottom({bool isImmediate = false}) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scrollController.hasClients) {
-        _scrollController.animateTo(
-          _scrollController.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeOut,
-        );
+        if (isImmediate) {
+           _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
+        } else {
+           _scrollController.animateTo(
+             _scrollController.position.maxScrollExtent,
+             duration: const Duration(milliseconds: 300),
+             curve: Curves.easeOut,
+           );
+        }
       }
     });
   }
@@ -92,7 +96,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
     // Auto-scroll to bottom if generating
     if (chatProvider.isTyping) {
-       _scrollToBottom();
+       _scrollToBottom(isImmediate: true);
     }
 
     return Scaffold(
