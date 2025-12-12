@@ -49,6 +49,12 @@ class SettingsProvider with ChangeNotifier {
     Map<String, String>? modelAliases,
     ApiProvider? apiProvider,
     String? openRouterApiKey,
+    SearchProvider? searchProvider,
+    String? braveApiKey,
+    String? bingApiKey,
+    String? googleApiKey,
+    String? googleCx,
+    String? perplexityApiKey,
   }) async {
     _settings = _settings.copyWith(
       lmStudioUrl: lmStudioUrl,
@@ -60,6 +66,12 @@ class SettingsProvider with ChangeNotifier {
       modelAliases: modelAliases,
       apiProvider: apiProvider,
       openRouterApiKey: openRouterApiKey,
+      searchProvider: searchProvider,
+      braveApiKey: braveApiKey,
+      bingApiKey: bingApiKey,
+      googleApiKey: googleApiKey,
+      googleCx: googleCx,
+      perplexityApiKey: perplexityApiKey,
     );
     
     // Update API service with new settings if URLs or provider changed

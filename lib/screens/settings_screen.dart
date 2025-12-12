@@ -16,6 +16,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final _lmStudioController = TextEditingController();
   final _searxngController = TextEditingController();
   final _openRouterApiKeyController = TextEditingController();
+  final _braveController = TextEditingController();
+  final _bingController = TextEditingController();
+  final _googleApiKeyController = TextEditingController();
+  final _googleCxController = TextEditingController();
+  final _perplexityController = TextEditingController();
 
   @override
   void initState() {
@@ -24,6 +29,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _lmStudioController.text = settings.lmStudioUrl;
     _searxngController.text = settings.searxngUrl;
     _openRouterApiKeyController.text = settings.openRouterApiKey ?? '';
+    _braveController.text = settings.braveApiKey ?? '';
+    _bingController.text = settings.bingApiKey ?? '';
+    _googleApiKeyController.text = settings.googleApiKey ?? '';
+    _googleCxController.text = settings.googleCx ?? '';
+    _perplexityController.text = settings.perplexityApiKey ?? '';
   }
 
   @override
@@ -31,6 +41,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _lmStudioController.dispose();
     _searxngController.dispose();
     _openRouterApiKeyController.dispose();
+    _braveController.dispose();
+    _bingController.dispose();
+    _googleApiKeyController.dispose();
+    _googleCxController.dispose();
+    _perplexityController.dispose();
     super.dispose();
   }
 
@@ -179,66 +194,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget _buildConnectionCard(BuildContext context, SettingsProvider settingsProvider) {
     final settings = settingsProvider.settings;
     final isOpenRouter = settings.apiProvider == ApiProvider.openRouter;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     
     // LM Studio Status
     final isLmConnected = !isOpenRouter && settingsProvider.error == null && settingsProvider.availableModels.isNotEmpty;
-    final lmStatusDot = Container(
-       width: 8, 
-       height: 8,
-       decoration: BoxDecoration(
-           color: isLmConnected ? Colors.green : Colors.red,
-           shape: BoxShape.circle,
-           boxShadow: [
-               BoxShadow(
-                   color: (isLmConnected ? Colors.green : Colors.red).withValues(alpha: 0.5), 
-                   blurRadius: 5, 
-                   spreadRadius: 1
-               )
-           ]
-       ),
-    );
+    final lmStatusDot = _buildStatusDot(isLmConnected);
 
     // OpenRouter Status
     final isOpenRouterConnected = settingsProvider.isOpenRouterConnected;
-    final openRouterStatusDot = Container(
-       width: 8, 
-       height: 8,
-       decoration: BoxDecoration(
-           color: isOpenRouterConnected ? Colors.green : Colors.red,
-           shape: BoxShape.circle,
-           boxShadow: [
-               BoxShadow(
-                   color: (isOpenRouterConnected ? Colors.green : Colors.red).withValues(alpha: 0.5), 
-                   blurRadius: 5, 
-                   spreadRadius: 1
-               )
-           ]
-       ),
-    );
+    final openRouterStatusDot = _buildStatusDot(isOpenRouterConnected);
 
     // SearXNG Status
     final isSearxngConnected = settingsProvider.isSearxngConnected;
-    final searxngStatusDot = Container(
-       width: 8, 
-       height: 8,
-       decoration: BoxDecoration(
-           color: isSearxngConnected ? Colors.green : Colors.red,
-           shape: BoxShape.circle,
-           boxShadow: [
-               BoxShadow(
-                   color: (isSearxngConnected ? Colors.green : Colors.red).withValues(alpha: 0.5), 
-                   blurRadius: 5, 
-                   spreadRadius: 1
-               )
-           ]
-       ),
-    );
+    final searxngStatusDot = _buildStatusDot(isSearxngConnected);
 
     return _buildCard(
       context: context,
       child: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             if (!isOpenRouter) ...[
               _buildInputField(
@@ -261,15 +236,105 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   hintText: 'sk-or-...',
               ),
             ],
-            const SizedBox(height: 16),
-            _buildInputField(
-                context, 
-                'SearXNG URL', 
-                _searxngController, 
-                Icons.search, 
-                (val) => settingsProvider.updateSettings(searxngUrl: val),
-                labelTrailing: searxngStatusDot
+            
+            const SizedBox(height: 24),
+            Text(
+              'Search Provider',
+              style: TextStyle(
+                color: isDark ? Colors.white70 : Colors.black54,
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+              ),
             ),
+            const SizedBox(height: 12),
+            Container(
+              width: double.infinity,
+              decoration: BoxDecoration(
+                 color: isDark ? Colors.black.withValues(alpha: 0.2) : Colors.grey.withValues(alpha: 0.05),
+                 borderRadius: BorderRadius.circular(12),
+              ),
+              child: DropdownButtonHideUnderline(
+                child: ButtonTheme(
+                  alignedDropdown: true,
+                  child: DropdownButton<SearchProvider>(
+                    value: settings.searchProvider,
+                    isExpanded: true,
+                    borderRadius: BorderRadius.circular(12),
+                    dropdownColor: isDark ? const Color(0xFF2C2C2C) : Colors.white,
+                    style: TextStyle(color: isDark ? Colors.white : Colors.black87),
+                    items: const [
+                       DropdownMenuItem(value: SearchProvider.searxng, child: Text('SearXNG (Self-hosted)')),
+                       DropdownMenuItem(value: SearchProvider.brave, child: Text('Brave Search')),
+                       DropdownMenuItem(value: SearchProvider.bing, child: Text('Bing Search')),
+                       DropdownMenuItem(value: SearchProvider.google, child: Text('Google Search')),
+                       DropdownMenuItem(value: SearchProvider.perplexity, child: Text('Perplexity AI')),
+                    ],
+                    onChanged: (SearchProvider? newValue) {
+                      if (newValue != null) {
+                         settingsProvider.updateSettings(searchProvider: newValue);
+                      }
+                    },
+                  ),
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 16),
+            
+            if (settings.searchProvider == SearchProvider.searxng) ...[
+               _buildInputField(
+                  context, 
+                  'SearXNG URL', 
+                  _searxngController, 
+                  Icons.search, 
+                  (val) => settingsProvider.updateSettings(searxngUrl: val),
+                  labelTrailing: searxngStatusDot
+               ),
+            ] else if (settings.searchProvider == SearchProvider.brave) ...[
+               _buildInputField(
+                  context, 
+                  'Brave Search API Key', 
+                  _braveController, 
+                  Icons.key, 
+                  (val) => settingsProvider.updateSettings(braveApiKey: val),
+                  obscureText: true,
+               ),
+            ] else if (settings.searchProvider == SearchProvider.bing) ...[
+               _buildInputField(
+                  context, 
+                  'Bing Search API Key', 
+                  _bingController, 
+                  Icons.key, 
+                  (val) => settingsProvider.updateSettings(bingApiKey: val),
+                  obscureText: true,
+               ),
+            ] else if (settings.searchProvider == SearchProvider.google) ...[
+               _buildInputField(
+                  context, 
+                  'Google Search API Key', 
+                  _googleApiKeyController, 
+                  Icons.key, 
+                  (val) => settingsProvider.updateSettings(googleApiKey: val),
+                  obscureText: true,
+               ),
+               const SizedBox(height: 16),
+               _buildInputField(
+                  context, 
+                  'Google Search Engine ID (CX)', 
+                  _googleCxController, 
+                  Icons.numbers, 
+                  (val) => settingsProvider.updateSettings(googleCx: val),
+               ),
+            ] else if (settings.searchProvider == SearchProvider.perplexity) ...[
+               _buildInputField(
+                  context, 
+                  'Perplexity API Key', 
+                  _perplexityController, 
+                  Icons.key, 
+                  (val) => settingsProvider.updateSettings(perplexityApiKey: val),
+                  obscureText: true,
+               ),
+            ],
             const SizedBox(height: 20),
             SizedBox(
               width: double.infinity,
@@ -433,6 +498,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildStatusDot(bool isConnected) {
+    return Container(
+       width: 8, 
+       height: 8,
+       decoration: BoxDecoration(
+           color: isConnected ? Colors.green : Colors.red,
+           shape: BoxShape.circle,
+           boxShadow: [
+               BoxShadow(
+                   color: (isConnected ? Colors.green : Colors.red).withValues(alpha: 0.5), 
+                   blurRadius: 5, 
+                   spreadRadius: 1
+               )
+           ]
+       ),
     );
   }
 

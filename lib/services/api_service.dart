@@ -101,8 +101,32 @@ class ApiService {
       }
   }
 
-  // SearXNG - Search
+  // Web Search - Routes to appropriate provider
   Future<List<String>> searchWeb(String query) async {
+    if (query.trim().isEmpty) return [];
+
+    try {
+      switch (settings.searchProvider) {
+        case SearchProvider.brave:
+          return _searchBrave(query);
+        case SearchProvider.bing:
+          return _searchBing(query);
+        case SearchProvider.google:
+          return _searchGoogle(query);
+        case SearchProvider.perplexity:
+          return _searchPerplexity(query);
+        case SearchProvider.searxng:
+        default:
+          return _searchSearxng(query);
+      }
+    } catch (e) {
+      print('DEBUG: Search failed: $e');
+      return ["Error performing search: $e"];
+    }
+  }
+
+  // SearXNG Search
+  Future<List<String>> _searchSearxng(String query) async {
     try {
       final uri = Uri.parse('${settings.searxngUrl}/search').replace(queryParameters: {
         'q': query,
@@ -119,12 +143,140 @@ class ApiService {
         return results.map((r) => 
           "Title: ${r['title']}\nSnippet: ${r['content']}\nURL: ${r['url']}"
         ).toList();
-      } else {
-        // Return empty list instead of throwing to allow chat to continue without search
-        return []; 
       }
+      return [];
     } catch (e) {
-      return []; 
+      print('SearXNG error: $e');
+      return [];
+    }
+  }
+
+  // Brave Search
+  Future<List<String>> _searchBrave(String query) async {
+    if (settings.braveApiKey == null || settings.braveApiKey!.isEmpty) {
+      return ["Error: Brave API key not configured"];
+    }
+
+    try {
+      final response = await http.get(
+        Uri.parse('https://api.search.brave.com/res/v1/web/search').replace(queryParameters: {
+          'q': query,
+          'count': '5',
+        }),
+        headers: {
+          'X-Subscription-Token': settings.braveApiKey!,
+          'Accept': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final List<dynamic> results = data['web']['results'] ?? [];
+        
+        return results.map((r) => 
+          "Title: ${r['title']}\nSnippet: ${r['description']}\nURL: ${r['url']}"
+        ).toList();
+      }
+      return ["Error: Brave search failed (${response.statusCode})"];
+    } catch (e) {
+       return ["Error: $e"];
+    }
+  }
+
+  // Bing Search
+  Future<List<String>> _searchBing(String query) async {
+    if (settings.bingApiKey == null || settings.bingApiKey!.isEmpty) {
+      return ["Error: Bing API key not configured"];
+    }
+
+    try {
+      final response = await http.get(
+        Uri.parse('https://api.bing.microsoft.com/v7.0/search').replace(queryParameters: {
+          'q': query,
+          'count': '5',
+        }),
+        headers: {
+          'Ocp-Apim-Subscription-Key': settings.bingApiKey!,
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final List<dynamic> results = data['webPages']['value'] ?? [];
+        
+        return results.map((r) => 
+          "Title: ${r['name']}\nSnippet: ${r['snippet']}\nURL: ${r['url']}"
+        ).toList();
+      }
+      return ["Error: Bing search failed (${response.statusCode})"];
+    } catch (e) {
+      return ["Error: $e"];
+    }
+  }
+
+  // Google Search
+  Future<List<String>> _searchGoogle(String query) async {
+    if (settings.googleApiKey == null || settings.googleApiKey!.isEmpty || 
+        settings.googleCx == null || settings.googleCx!.isEmpty) {
+      return ["Error: Google API key or CX not configured"];
+    }
+
+    try {
+      final response = await http.get(
+        Uri.parse('https://www.googleapis.com/customsearch/v1').replace(queryParameters: {
+          'key': settings.googleApiKey,
+          'cx': settings.googleCx,
+          'q': query,
+          'num': '5',
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final List<dynamic> results = data['items'] ?? [];
+        
+        return results.map((r) => 
+          "Title: ${r['title']}\nSnippet: ${r['snippet']}\nURL: ${r['link']}"
+        ).toList();
+      }
+      return ["Error: Google search failed (${response.statusCode})"];
+    } catch (e) {
+      return ["Error: $e"];
+    }
+  }
+
+  // Perplexity AI (Sonar)
+  Future<List<String>> _searchPerplexity(String query) async {
+    if (settings.perplexityApiKey == null || settings.perplexityApiKey!.isEmpty) {
+      return ["Error: Perplexity API key not configured"];
+    }
+
+    try {
+      final response = await http.post(
+        Uri.parse('https://api.perplexity.ai/chat/completions'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ${settings.perplexityApiKey}',
+        },
+        body: jsonEncode({
+          'model': 'sonar-pro', // Using a search-capable model
+          'messages': [
+             {'role': 'system', 'content': 'You are a search engine. Provide a concise summary of the latest information about the user query. Include key facts and sources.'},
+             {'role': 'user', 'content': query}
+          ],
+          'stream': false,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+         final data = jsonDecode(response.body);
+         final content = data['choices'][0]['message']['content'];
+         // Perplexity returns a synthesized answer. We wrap it as a "result".
+         return ["Source: Perplexity AI\nContent: $content"];
+      }
+      return ["Error: Perplexity request failed (${response.statusCode})"];
+    } catch (e) {
+      return ["Error: $e"];
     }
   }
 

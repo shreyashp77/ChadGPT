@@ -13,6 +13,14 @@ class SharedPrefsService {
   static const String keyModelAliases = 'model_aliases';
   static const String keyApiProvider = 'api_provider';
   static const String keyOpenRouterApiKey = 'openrouter_api_key';
+  
+  // Search Provider Keys
+  static const String keySearchProvider = 'search_provider';
+  static const String keyBraveApiKey = 'brave_api_key';
+  static const String keyBingApiKey = 'bing_api_key';
+  static const String keyGoogleApiKey = 'google_api_key';
+  static const String keyGoogleCx = 'google_cx';
+  static const String keyPerplexityApiKey = 'perplexity_api_key';
 
   Future<AppSettings> getSettings() async {
     final prefs = await SharedPreferences.getInstance();
@@ -27,6 +35,8 @@ class SharedPrefsService {
         } catch (_) {}
     }
 
+    // Parse Search Provider
+    SearchProvider searchProvider = SearchProvider.searxng;
     // Parse API provider
     ApiProvider apiProvider = ApiProvider.lmStudio;
     if (prefs.containsKey(keyApiProvider)) {
@@ -34,6 +44,15 @@ class SharedPrefsService {
       if (providerStr == 'openRouter') {
         apiProvider = ApiProvider.openRouter;
       }
+    }
+
+    // Parse Search Provider
+    if (prefs.containsKey(keySearchProvider)) {
+      final searchStr = prefs.getString(keySearchProvider);
+      searchProvider = SearchProvider.values.firstWhere(
+        (e) => e.toString().split('.').last == searchStr,
+        orElse: () => SearchProvider.searxng,
+      );
     }
 
     return AppSettings(
@@ -46,6 +65,12 @@ class SharedPrefsService {
       modelAliases: aliases,
       apiProvider: apiProvider,
       openRouterApiKey: prefs.getString(keyOpenRouterApiKey),
+      searchProvider: searchProvider,
+      braveApiKey: prefs.getString(keyBraveApiKey),
+      bingApiKey: prefs.getString(keyBingApiKey),
+      googleApiKey: prefs.getString(keyGoogleApiKey),
+      googleCx: prefs.getString(keyGoogleCx),
+      perplexityApiKey: prefs.getString(keyPerplexityApiKey),
     );
   }
 
@@ -79,6 +104,39 @@ class SharedPrefsService {
       await prefs.setString(keyOpenRouterApiKey, settings.openRouterApiKey!);
     } else {
       await prefs.remove(keyOpenRouterApiKey);
+    }
+
+    // Save Search Settings
+    await prefs.setString(keySearchProvider, settings.searchProvider.toString().split('.').last);
+
+    if (settings.braveApiKey != null && settings.braveApiKey!.isNotEmpty) {
+      await prefs.setString(keyBraveApiKey, settings.braveApiKey!);
+    } else {
+      await prefs.remove(keyBraveApiKey);
+    }
+
+    if (settings.bingApiKey != null && settings.bingApiKey!.isNotEmpty) {
+      await prefs.setString(keyBingApiKey, settings.bingApiKey!);
+    } else {
+      await prefs.remove(keyBingApiKey);
+    }
+
+    if (settings.googleApiKey != null && settings.googleApiKey!.isNotEmpty) {
+      await prefs.setString(keyGoogleApiKey, settings.googleApiKey!);
+    } else {
+      await prefs.remove(keyGoogleApiKey);
+    }
+
+    if (settings.googleCx != null && settings.googleCx!.isNotEmpty) {
+      await prefs.setString(keyGoogleCx, settings.googleCx!);
+    } else {
+      await prefs.remove(keyGoogleCx);
+    }
+
+    if (settings.perplexityApiKey != null && settings.perplexityApiKey!.isNotEmpty) {
+      await prefs.setString(keyPerplexityApiKey, settings.perplexityApiKey!);
+    } else {
+      await prefs.remove(keyPerplexityApiKey);
     }
   }
 }
