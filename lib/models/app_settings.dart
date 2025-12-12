@@ -1,3 +1,5 @@
+enum ApiProvider { lmStudio, openRouter }
+
 class AppSettings {
   String lmStudioUrl;
   String searxngUrl;
@@ -6,6 +8,8 @@ class AppSettings {
   bool useWebSearch;
   int? themeColor;
   Map<String, String> modelAliases;
+  ApiProvider apiProvider;
+  String? openRouterApiKey;
 
   AppSettings({
     required this.lmStudioUrl,
@@ -15,6 +19,8 @@ class AppSettings {
     this.useWebSearch = false,
     this.themeColor,
     this.modelAliases = const {},
+    this.apiProvider = ApiProvider.lmStudio,
+    this.openRouterApiKey,
   });
 
   // Create a copyWith method
@@ -26,6 +32,8 @@ class AppSettings {
     bool? useWebSearch,
     int? themeColor,
     Map<String, String>? modelAliases,
+    ApiProvider? apiProvider,
+    String? openRouterApiKey,
   }) {
     return AppSettings(
       lmStudioUrl: lmStudioUrl ?? this.lmStudioUrl,
@@ -35,6 +43,8 @@ class AppSettings {
       useWebSearch: useWebSearch ?? this.useWebSearch,
       themeColor: themeColor ?? this.themeColor,
       modelAliases: modelAliases ?? this.modelAliases,
+      apiProvider: apiProvider ?? this.apiProvider,
+      openRouterApiKey: openRouterApiKey ?? this.openRouterApiKey,
     );
   }
 }

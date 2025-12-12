@@ -8,6 +8,8 @@ import '../models/message.dart';
 class ApiService {
   final AppSettings settings;
 
+  static const String openRouterBaseUrl = 'https://openrouter.ai/api/v1';
+
   ApiService(this.settings);
 
   // LM Studio - Get Models
@@ -24,6 +26,46 @@ class ApiService {
       }
     } catch (e) {
       throw Exception('Failed to connect to LM Studio: $e');
+    }
+  }
+
+  // OpenRouter - Get Free Models
+  Future<List<Map<String, dynamic>>> getOpenRouterModels() async {
+    try {
+      final response = await http.get(
+        Uri.parse('$openRouterBaseUrl/models'),
+        headers: {
+          'Authorization': 'Bearer ${settings.openRouterApiKey}',
+        },
+      );
+      
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final List<dynamic> models = data['data'];
+        
+        // Filter for free models (pricing.prompt == "0" and pricing.completion == "0")
+        final freeModels = models.where((m) {
+          final pricing = m['pricing'];
+          if (pricing == null) return false;
+          final promptPrice = pricing['prompt']?.toString() ?? '1';
+          final completionPrice = pricing['completion']?.toString() ?? '1';
+          return promptPrice == '0' && completionPrice == '0';
+        }).map<Map<String, dynamic>>((m) {
+          return {
+            'id': m['id'] as String,
+            'name': m['name'] as String? ?? m['id'],
+            'context_length': m['context_length'] ?? 4096,
+          };
+        }).toList();
+        
+        return freeModels;
+      } else if (response.statusCode == 401) {
+        throw Exception('Invalid API key');
+      } else {
+        throw Exception('Failed to load models: ${response.statusCode}');
+      }
+    } catch (e) {
+      throw Exception('Failed to connect to OpenRouter: $e');
     }
   }
 
@@ -78,8 +120,32 @@ class ApiService {
     }
   }
 
-  // LM Studio - Chat Completion Stream
+  // Chat Completion Stream - Routes to appropriate provider
   Stream<String> chatCompletionStream({
+    required String modelId,
+    required List<Message> messages,
+    List<String>? searchResults,
+    String? systemPrompt,
+  }) async* {
+    if (settings.apiProvider == ApiProvider.openRouter) {
+      yield* _openRouterChatStream(
+        modelId: modelId,
+        messages: messages,
+        searchResults: searchResults,
+        systemPrompt: systemPrompt,
+      );
+    } else {
+      yield* _lmStudioChatStream(
+        modelId: modelId,
+        messages: messages,
+        searchResults: searchResults,
+        systemPrompt: systemPrompt,
+      );
+    }
+  }
+
+  // LM Studio - Chat Completion Stream
+  Stream<String> _lmStudioChatStream({
     required String modelId,
     required List<Message> messages,
     List<String>? searchResults,
@@ -185,8 +251,121 @@ class ApiService {
     }
   }
 
-  // Generate Chat Title
+  // OpenRouter - Chat Completion Stream
+  Stream<String> _openRouterChatStream({
+    required String modelId,
+    required List<Message> messages,
+    List<String>? searchResults,
+    String? systemPrompt,
+  }) async* {
+    
+    final List<Map<String, dynamic>> apiMessages = [];
+    
+    // System message
+    String systemContent = systemPrompt ?? "You are a helpful AI assistant.";
+    if (searchResults != null && searchResults.isNotEmpty) {
+      systemContent += "\n\nUse the following search results to answer the user's question:\n${searchResults.join('\n\n')}";
+    }
+    
+    apiMessages.add({'role': 'system', 'content': systemContent});
+
+    // Chat history - Sliding Window
+    var contextMessages = messages;
+    if (messages.length > 20) {
+      contextMessages = messages.sublist(messages.length - 20);
+    }
+
+    for (var msg in contextMessages) {
+       if (msg.role != MessageRole.system) {
+         Map<String, dynamic> msgMap = {
+           'role': msg.role.toString().split('.').last,
+           'content': msg.content,
+         };
+         
+         // Handle Image Attachments for vision models
+         if (msg.attachmentPath != null && msg.attachmentType == 'image') {
+            try {
+              final file = File(msg.attachmentPath!);
+              if (await file.exists()) {
+                final bytes = await file.readAsBytes();
+                final base64Image = base64Encode(bytes);
+                
+                msgMap['content'] = [
+                  {'type': 'text', 'text': msg.content},
+                  {
+                    'type': 'image_url',
+                    'image_url': {
+                      'url': 'data:image/jpeg;base64,$base64Image'
+                    }
+                  }
+                ];
+              }
+            } catch (e) {
+               print("Error reading image: $e");
+            }
+         }
+         
+         apiMessages.add(msgMap);
+       }
+    }
+    
+    final request = http.Request('POST', Uri.parse('$openRouterBaseUrl/chat/completions'));
+    request.headers['Content-Type'] = 'application/json';
+    request.headers['Authorization'] = 'Bearer ${settings.openRouterApiKey}';
+    request.headers['HTTP-Referer'] = 'https://chadgpt.app'; // Required by OpenRouter
+    request.headers['X-Title'] = 'ChadGPT'; // Optional but recommended
+    request.body = jsonEncode({
+      'model': modelId,
+      'messages': apiMessages,
+      'stream': true,
+    });
+
+    final client = http.Client();
+    try {
+      final streamedResponse = await client.send(request);
+
+      if (streamedResponse.statusCode == 401) {
+        yield "Error: Invalid API key";
+        return;
+      }
+
+      await for (final chunk in streamedResponse.stream.transform(utf8.decoder)) {
+        final lines = chunk.split('\n');
+        for (final line in lines) {
+          if (line.startsWith('data: ')) {
+            final data = line.substring(6);
+            if (data == '[DONE]') break;
+            
+            try {
+              final json = jsonDecode(data);
+              final content = json['choices'][0]['delta']['content'];
+              if (content != null) {
+                yield content;
+              }
+            } catch (e) {
+              // Ignore parse errors for partial chunks
+            }
+          }
+        }
+      }
+    } catch (e) {
+      yield "Error: $e";
+    } finally {
+      client.close();
+    }
+  }
+
+  // Generate Chat Title - Routes to appropriate provider
   Future<String> generateTitle(String content, String modelId) async {
+    if (settings.apiProvider == ApiProvider.openRouter) {
+      return _generateTitleOpenRouter(content, modelId);
+    } else {
+      return _generateTitleLmStudio(content, modelId);
+    }
+  }
+
+  // LM Studio - Generate Title
+  Future<String> _generateTitleLmStudio(String content, String modelId) async {
     try {
       final response = await http.post(
         Uri.parse('${settings.lmStudioUrl}/v1/chat/completions'),
@@ -215,8 +394,50 @@ class ApiService {
     return content.length > 30 ? '${content.substring(0, 30)}...' : content;
   }
 
-  // Enhance System Prompt
+  // OpenRouter - Generate Title
+  Future<String> _generateTitleOpenRouter(String content, String modelId) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$openRouterBaseUrl/chat/completions'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ${settings.openRouterApiKey}',
+          'HTTP-Referer': 'https://chadgpt.app',
+          'X-Title': 'ChadGPT',
+        },
+        body: jsonEncode({
+          'model': modelId,
+          'messages': [
+            {'role': 'system', 'content': 'Generate a short, concise, and catchy chat title (max 6 words) based on the following usage message. Return ONLY the title text, nothing else.'},
+            {'role': 'user', 'content': content}
+          ],
+          'stream': false,
+          'max_tokens': 20,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final title = data['choices'][0]['message']['content'].toString().trim();
+        return title.replaceAll('"', '').replaceAll("'", '').replaceAll('.', ''); 
+      }
+    } catch (e) {
+      // Fallback
+    }
+    return content.length > 30 ? '${content.substring(0, 30)}...' : content;
+  }
+
+  // Enhance System Prompt - Routes to appropriate provider
   Future<String> enhancePrompt(String name, String description, String currentPrompt, String modelId) async {
+    if (settings.apiProvider == ApiProvider.openRouter) {
+      return _enhancePromptOpenRouter(name, description, currentPrompt, modelId);
+    } else {
+      return _enhancePromptLmStudio(name, description, currentPrompt, modelId);
+    }
+  }
+
+  // LM Studio - Enhance Prompt
+  Future<String> _enhancePromptLmStudio(String name, String description, String currentPrompt, String modelId) async {
     print('DEBUG: Enhancing prompt with Model: $modelId');
     print('DEBUG: URL: ${settings.lmStudioUrl}/v1/chat/completions');
     
@@ -240,7 +461,6 @@ Return ONLY the improved system prompt. Do not add any conversational filler, ex
           'stream': false,
           'max_tokens': 500,
       });
-      // print('DEBUG: Request Body: $body');
 
       final response = await http.post(
         Uri.parse('${settings.lmStudioUrl}/v1/chat/completions'),
@@ -263,4 +483,49 @@ Return ONLY the improved system prompt. Do not add any conversational filler, ex
       throw Exception('Failed to enhance prompt: $e');
     }
   }
+
+  // OpenRouter - Enhance Prompt
+  Future<String> _enhancePromptOpenRouter(String name, String description, String currentPrompt, String modelId) async {
+    try {
+      final prompt = '''
+You are an expert prompt engineer. Your goal is to rewrite the system prompt for an AI persona to make it more effective, detailed, and robust.
+
+Persona Name: $name
+Description: $description
+Draft Prompt: $currentPrompt
+
+Return ONLY the improved system prompt. Do not add any conversational filler, explanations, or quotes. Just the raw prompt text.
+''';
+
+      final response = await http.post(
+        Uri.parse('$openRouterBaseUrl/chat/completions'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ${settings.openRouterApiKey}',
+          'HTTP-Referer': 'https://chadgpt.app',
+          'X-Title': 'ChadGPT',
+        },
+        body: jsonEncode({
+          'model': modelId,
+          'messages': [
+            {'role': 'system', 'content': 'You are a helpful assistant.'},
+            {'role': 'user', 'content': prompt}
+          ],
+          'stream': false,
+          'max_tokens': 500,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final enhanced = data['choices'][0]['message']['content'].toString().trim();
+        return enhanced;
+      } else {
+        throw Exception('Failed to enhance prompt: ${response.statusCode} - ${response.body}');
+      }
+    } catch (e) {
+      throw Exception('Failed to enhance prompt: $e');
+    }
+  }
 }
+

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../providers/settings_provider.dart';
+import '../models/app_settings.dart';
 import '../utils/theme.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -14,6 +15,7 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   final _lmStudioController = TextEditingController();
   final _searxngController = TextEditingController();
+  final _openRouterApiKeyController = TextEditingController();
 
   @override
   void initState() {
@@ -21,12 +23,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final settings = context.read<SettingsProvider>().settings;
     _lmStudioController.text = settings.lmStudioUrl;
     _searxngController.text = settings.searxngUrl;
+    _openRouterApiKeyController.text = settings.openRouterApiKey ?? '';
   }
 
   @override
   void dispose() {
     _lmStudioController.dispose();
     _searxngController.dispose();
+    _openRouterApiKeyController.dispose();
     super.dispose();
   }
 
@@ -50,6 +54,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
             padding: const EdgeInsets.all(16.0),
             sliver: SliverList(
               delegate: SliverChildListDelegate([
+                _buildSectionHeader('API Provider'),
+                const SizedBox(height: 8),
+                _buildProviderCard(context, settingsProvider),
+                
+                const SizedBox(height: 24),
+                
                 _buildSectionHeader('Connectivity'),
                 const SizedBox(height: 8),
                 _buildConnectionCard(context, settingsProvider),
@@ -109,9 +119,69 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
+  Widget _buildProviderCard(BuildContext context, SettingsProvider settingsProvider) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final settings = settingsProvider.settings;
+    
+    return _buildCard(
+      context: context,
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Choose your AI backend',
+              style: TextStyle(
+                color: isDark ? Colors.white70 : Colors.black54,
+                fontSize: 13,
+              ),
+            ),
+            const SizedBox(height: 12),
+            SegmentedButton<ApiProvider>(
+              segments: const [
+                ButtonSegment<ApiProvider>(
+                  value: ApiProvider.lmStudio,
+                  label: Text('LM Studio'),
+                  icon: Icon(Icons.computer),
+                ),
+                ButtonSegment<ApiProvider>(
+                  value: ApiProvider.openRouter,
+                  label: Text('OpenRouter'),
+                  icon: Icon(Icons.cloud),
+                ),
+              ],
+              selected: {settings.apiProvider},
+              onSelectionChanged: (Set<ApiProvider> newSelection) {
+                settingsProvider.updateSettings(apiProvider: newSelection.first);
+              },
+              style: ButtonStyle(
+                backgroundColor: WidgetStateProperty.resolveWith<Color?>((states) {
+                  if (states.contains(WidgetState.selected)) {
+                    return Theme.of(context).colorScheme.primary;
+                  }
+                  return isDark ? Colors.black.withValues(alpha: 0.2) : Colors.grey.withValues(alpha: 0.1);
+                }),
+                foregroundColor: WidgetStateProperty.resolveWith<Color?>((states) {
+                  if (states.contains(WidgetState.selected)) {
+                    return Colors.white;
+                  }
+                  return isDark ? Colors.white70 : Colors.black54;
+                }),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildConnectionCard(BuildContext context, SettingsProvider settingsProvider) {
+    final settings = settingsProvider.settings;
+    final isOpenRouter = settings.apiProvider == ApiProvider.openRouter;
+    
     // LM Studio Status
-    final isLmConnected = settingsProvider.error == null;
+    final isLmConnected = !isOpenRouter && settingsProvider.error == null && settingsProvider.availableModels.isNotEmpty;
     final lmStatusDot = Container(
        width: 8, 
        height: 8,
@@ -121,6 +191,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
            boxShadow: [
                BoxShadow(
                    color: (isLmConnected ? Colors.green : Colors.red).withValues(alpha: 0.5), 
+                   blurRadius: 5, 
+                   spreadRadius: 1
+               )
+           ]
+       ),
+    );
+
+    // OpenRouter Status
+    final isOpenRouterConnected = settingsProvider.isOpenRouterConnected;
+    final openRouterStatusDot = Container(
+       width: 8, 
+       height: 8,
+       decoration: BoxDecoration(
+           color: isOpenRouterConnected ? Colors.green : Colors.red,
+           shape: BoxShape.circle,
+           boxShadow: [
+               BoxShadow(
+                   color: (isOpenRouterConnected ? Colors.green : Colors.red).withValues(alpha: 0.5), 
                    blurRadius: 5, 
                    spreadRadius: 1
                )
@@ -152,14 +240,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
         padding: const EdgeInsets.all(20),
         child: Column(
           children: [
-            _buildInputField(
-                context, 
-                'LM Studio URL', 
-                _lmStudioController, 
-                Icons.computer, 
-                (val) => settingsProvider.updateSettings(lmStudioUrl: val),
-                labelTrailing: lmStatusDot
-            ),
+            if (!isOpenRouter) ...[
+              _buildInputField(
+                  context, 
+                  'LM Studio URL', 
+                  _lmStudioController, 
+                  Icons.computer, 
+                  (val) => settingsProvider.updateSettings(lmStudioUrl: val),
+                  labelTrailing: lmStatusDot
+              ),
+            ] else ...[
+              _buildInputField(
+                  context, 
+                  'OpenRouter API Key', 
+                  _openRouterApiKeyController, 
+                  Icons.vpn_key, 
+                  (val) => settingsProvider.updateSettings(openRouterApiKey: val),
+                  labelTrailing: openRouterStatusDot,
+                  obscureText: true,
+                  hintText: 'sk-or-...',
+              ),
+            ],
             const SizedBox(height: 16),
             _buildInputField(
                 context, 
@@ -178,13 +279,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     final scaffoldMessenger = ScaffoldMessenger.of(context);
                     await settingsProvider.fetchModels();
                     if (mounted) {
+                        String message;
+                        if (settingsProvider.error == null) {
+                          if (isOpenRouter) {
+                            message = 'Connected! Found ${settingsProvider.availableModels.length} free models.';
+                          } else {
+                            message = 'Connected! Found ${settingsProvider.availableModels.length} models.';
+                          }
+                        } else {
+                          message = 'Error: ${settingsProvider.error}';
+                        }
                         scaffoldMessenger.showSnackBar(
                             SnackBar(
-                                content: Text(
-                                    settingsProvider.error == null 
-                                    ? 'Connected! Found ${settingsProvider.availableModels.length} models.' 
-                                    : 'Error: ${settingsProvider.error}'
-                                ),
+                                content: Text(message),
                                 behavior: SnackBarBehavior.floating,
                                 padding: const EdgeInsets.all(16),
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -216,7 +323,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  Widget _buildInputField(BuildContext context, String label, TextEditingController controller, IconData icon, Function(String) onChanged, {Widget? labelTrailing}) {
+  Widget _buildInputField(
+    BuildContext context, 
+    String label, 
+    TextEditingController controller, 
+    IconData icon, 
+    Function(String) onChanged, 
+    {Widget? labelTrailing, bool obscureText = false, String? hintText}
+  ) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final textColor = isDark ? Colors.white : Colors.black87;
     final hintColor = isDark ? Colors.white24 : Colors.black26;
@@ -240,6 +354,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           controller: controller,
           style: TextStyle(color: textColor),
           onChanged: onChanged,
+          obscureText: obscureText,
           decoration: InputDecoration(
             prefixIcon: Icon(icon, color: isDark ? Colors.white54 : Colors.black45, size: 20),
             filled: true,
@@ -248,7 +363,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
             focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.5))),
             contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-            hintText: 'http://...',
+            hintText: hintText ?? 'http://...',
             hintStyle: TextStyle(color: hintColor),
           ),
         ),
@@ -337,3 +452,4 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 }
+
