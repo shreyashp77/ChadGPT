@@ -87,7 +87,6 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   Widget build(BuildContext context) {
     final chatProvider = context.watch<ChatProvider>();
-    final settingsProvider = context.watch<SettingsProvider>();
     final currentChat = chatProvider.currentChat;
 
     return Scaffold(
@@ -242,33 +241,6 @@ class _ChatScreenState extends State<ChatScreen> {
                         mainAxisSize: MainAxisSize.min,
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                           // Attachments Preview
-                           if (_pendingAttachmentPath != null)
-                             Container(
-                                 margin: const EdgeInsets.only(bottom: 8, left: 16, right: 16),
-                                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                                 decoration: BoxDecoration(
-                                    color: Colors.black.withValues(alpha: 0.05),
-                                    borderRadius: BorderRadius.circular(20),
-                                 ),
-                                 child: Row(
-                                     mainAxisSize: MainAxisSize.min,
-                                     children: [
-                                         const Icon(Icons.attach_file, size: 16),
-                                         const SizedBox(width: 8),
-                                         Flexible(child: Text(_pendingAttachmentPath!.split('/').last, maxLines: 1, overflow: TextOverflow.ellipsis)),
-                                         const SizedBox(width: 8),
-                                         InkWell(
-                                             onTap: () => setState(() {
-                                                 _pendingAttachmentPath = null;
-                                                 _pendingAttachmentType = null;
-                                             }),
-                                             child: const Icon(Icons.close, size: 16),
-                                         )
-                                     ]
-                                 )
-                             ),
-
                            // Top: TextField
                            Padding(
                              padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -287,7 +259,7 @@ class _ChatScreenState extends State<ChatScreen> {
                              ),
                            ),
                            
-                           const SizedBox(height: 15),
+                           const SizedBox(height: 12),
 
                            // Bottom: Actions Row
                            Padding(
@@ -298,46 +270,47 @@ class _ChatScreenState extends State<ChatScreen> {
                                 // Attachment / Menu Button
                                   IconButton(
                                     icon: Icon(
-                                      _useWebSearch ? Icons.public : Icons.add_circle_outline, 
+                                      Icons.add_circle_outline, 
                                       color: Theme.of(context).colorScheme.primary
                                     ),
                                     onPressed: _showAttachmentOptions, 
                                   ),         
 
-                                  const SizedBox(width: 0),
+                                  // Active Features Indicator Chips (inline, expandable)
+                                  Expanded(
+                                    child: SingleChildScrollView(
+                                      scrollDirection: Axis.horizontal,
+                                      child: Row(
+                                        children: [
+                                          if (_useWebSearch)
+                                            Padding(
+                                              padding: const EdgeInsets.only(right: 6),
+                                              child: _buildFeatureChip(
+                                                context,
+                                                icon: Icons.public,
+                                                label: 'Search',
+                                                onRemove: () => setState(() => _useWebSearch = false),
+                                              ),
+                                            ),
+                                          if (_pendingAttachmentPath != null)
+                                            Padding(
+                                              padding: const EdgeInsets.only(right: 6),
+                                              child: _buildFeatureChip(
+                                                context,
+                                                icon: _pendingAttachmentType == 'image' ? Icons.image : Icons.attach_file,
+                                                label: _pendingAttachmentPath!.split('/').last,
+                                                onRemove: () => setState(() {
+                                                  _pendingAttachmentPath = null;
+                                                  _pendingAttachmentType = null;
+                                                }),
+                                              ),
+                                            ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
 
-                                 // Grok-style Model Selector Pill
-                                 GestureDetector(
-                                     onTap: () => _showGrokModelSelector(context),
-                                     child: Container(
-                                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                         decoration: BoxDecoration(
-                                             color: Theme.of(context).brightness == Brightness.dark ? Colors.white.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.05),
-                                             borderRadius: BorderRadius.circular(20),
-                                         ),
-                                         child: Row(
-                                             mainAxisSize: MainAxisSize.min,
-                                             children: [
-                                                Icon(Icons.auto_awesome, size: 14, color: Theme.of(context).colorScheme.primary),
-                                                const SizedBox(width: 6),
-                                                 
-                                                 ConstrainedBox(
-                                                     constraints: const BoxConstraints(maxWidth: 90),
-                                                     child: Text(
-                                                         settingsProvider.getModelDisplayName(settingsProvider.settings.selectedModelId ?? ''),
-                                                         style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.onSurface),
-                                                         maxLines: 1,
-                                                         overflow: TextOverflow.ellipsis,
-                                                     ),
-                                                 ),
-                                                 const SizedBox(width: 4),
-                                                 Icon(Icons.keyboard_arrow_down, size: 14, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5)),
-                                             ],
-                                         ),
-                                     ),
-                                 ),
-
-                                 const Spacer(),
+                                  const SizedBox(width: 8),
 
                                  // Action Button: Handles Voice/STT (Default), Sending (HasContent), or Stopping (Generating/Listening)
                                  Builder(
@@ -428,9 +401,21 @@ class _ChatScreenState extends State<ChatScreen> {
 
 
   void _showAttachmentOptions() {
+      final settingsProvider = context.read<SettingsProvider>();
       showModalBottomSheet(context: context, builder: (ctx) => Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+              // Model Selector at the top
+              ListTile(
+                  leading: const Icon(Icons.auto_awesome),
+                  title: Text('Model: ${settingsProvider.getModelDisplayName(settingsProvider.settings.selectedModelId ?? '')}'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () {
+                      Navigator.pop(ctx);
+                      _showGrokModelSelector(context);
+                  },
+              ),
+              const Divider(),
               ListTile(
                   leading: const Icon(Icons.image),
                   title: const Text('Image from Gallery'),
@@ -838,8 +823,48 @@ class _ChatScreenState extends State<ChatScreen> {
                      child: Icon(icon, color: iconColor, size: 22),
                 ),
               ),
-           ],
+       ],
        );
+  }
+
+  Widget _buildFeatureChip(BuildContext context, {required IconData icon, required String label, required VoidCallback onRemove}) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: isDark ? Colors.white.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7)),
+          const SizedBox(width: 5),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 120),
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w500,
+                color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          const SizedBox(width: 4),
+          GestureDetector(
+            onTap: onRemove,
+            child: Icon(
+              Icons.close,
+              size: 12,
+              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _sendMessage() async {
