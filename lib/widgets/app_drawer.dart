@@ -118,7 +118,30 @@ class _AppDrawerState extends State<AppDrawer> {
                                                             chatProvider.loadChat(chat.id);
                                                             Navigator.pop(context);
                                                         },
-                                                        trailing: isCurrent ? Icon(Icons.chevron_right, color: isDark ? Colors.white54 : Colors.black45, size: 16) : null,
+                                                        trailing: isCurrent 
+                                                            ? Icon(Icons.chevron_right, color: isDark ? Colors.white54 : Colors.black45, size: 16) 
+                                                            : (chat.hasUnreadMessages 
+                                                                ? Container(
+                                                                    width: 16, // Match the size of the chevron icon (16)
+                                                                    height: 16,
+                                                                    alignment: Alignment.center,
+                                                                    child: Container(
+                                                                        width: 8,
+                                                                        height: 8,
+                                                                        decoration: BoxDecoration(
+                                                                            color: Theme.of(context).colorScheme.primary,
+                                                                            shape: BoxShape.circle,
+                                                                            boxShadow: [
+                                                                                BoxShadow(
+                                                                                    color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.4),
+                                                                                    blurRadius: 4,
+                                                                                    spreadRadius: 1,
+                                                                                )
+                                                                            ]
+                                                                        ),
+                                                                    ),
+                                                                )
+                                                                : null),
                                                     ),
                                                 ),
                                             );

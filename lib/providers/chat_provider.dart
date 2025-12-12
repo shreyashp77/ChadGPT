@@ -24,14 +24,15 @@ class ChatProvider with ChangeNotifier {
 
   List<ChatSession> _chats = [];
   ChatSession? _currentChat;
-  bool _isTyping = false;
+
   bool _isTempMode = false;
   Persona? _currentPersona;
   List<Persona> _customPersonas = [];
   
   List<ChatSession> get chats => _chats;
   ChatSession? get currentChat => _currentChat;
-  bool get isTyping => _isTyping;
+  bool get isTyping => _activeGenerations.isNotEmpty;
+  final Set<String> _activeGenerations = {};
   bool get isTempMode => _isTempMode;
   Persona get currentPersona => _currentPersona ?? Persona.presets.first;
   List<Persona> get allPersonas => [...Persona.presets, ..._customPersonas];
@@ -68,10 +69,10 @@ class ChatProvider with ChangeNotifier {
 
     // Auto-restart listening after TTS finishes in Continuous Mode
     _ttsService.onCompletion = () {
-       if (_isContinuousVoiceMode && !_isListening && !_isTyping) {
+       if (_isContinuousVoiceMode && !_isListening && !isTyping) {
            // Small delay to ensure natural pause
            Future.delayed(const Duration(milliseconds: 500), () {
-               if (_isContinuousVoiceMode && !_isListening && !_isTyping) {
+               if (_isContinuousVoiceMode && !_isListening && !isTyping) {
                    startListening(
                        (text) {
                            if (text.trim().isNotEmpty) {
@@ -107,7 +108,7 @@ class ChatProvider with ChangeNotifier {
                   // For client error, it signifies busy state, so we retry after small delay.
                   if (_isContinuousVoiceMode) {
                       Future.delayed(const Duration(milliseconds: 500), () {
-                          if (_isContinuousVoiceMode && !_isListening && !_isTyping) {
+                          if (_isContinuousVoiceMode && !_isListening && !isTyping) {
                                startListening(
                                    (text) {
                                        if (text.trim().isNotEmpty) sendMessage(text);
@@ -293,12 +294,24 @@ class ChatProvider with ChangeNotifier {
     final chatIndex = _chats.indexWhere((c) => c.id == chatId);
     if (chatIndex != -1) {
       _currentChat = _chats[chatIndex];
+      
+      // Mark as read if it has unread messages
+      if (_currentChat!.hasUnreadMessages) {
+          _currentChat!.hasUnreadMessages = false;
+          await _dbService.markChatRead(chatId);
+          // Don't need to notify listeners here as we'll do it below
+      }
+
       // Load messages
       _currentChat!.messages = await _dbService.getMessages(chatId);
       notifyListeners();
     }
   }
-  
+
+ // ... (rest of file)
+
+
+
   Future<void> deleteChat(String chatId) async {
     await _dbService.deleteChat(chatId);
     _loadChats();
@@ -310,13 +323,11 @@ class ChatProvider with ChangeNotifier {
   Future<void> renameChat(String chatId, String newTitle) async {
     await _dbService.renameChat(chatId, newTitle);
     
-    // Update local list
     final chatIndex = _chats.indexWhere((c) => c.id == chatId);
     if (chatIndex != -1) {
         _chats[chatIndex].title = newTitle;
     }
     
-    // Update current chat if it's the one being renamed
     if (_currentChat?.id == chatId) {
         _currentChat!.title = newTitle;
     }
@@ -331,13 +342,10 @@ class ChatProvider with ChangeNotifier {
     final chat = _chats[chatIndex];
     final newPinState = !chat.isPinned;
     
-    // Update database
     await _dbService.togglePinChat(chatId, newPinState);
     
-    // Update local state
     chat.isPinned = newPinState;
     
-    // Re-sort the list (pinned first, then by date)
     _chats.sort((a, b) {
       if (a.isPinned && !b.isPinned) return -1;
       if (!a.isPinned && b.isPinned) return 1;
@@ -351,7 +359,7 @@ class ChatProvider with ChangeNotifier {
 
   void stopGeneration() {
     _abortGeneration = true;
-    _isTyping = false;
+    _activeGenerations.clear();
     notifyListeners();
   }
 
@@ -374,32 +382,23 @@ class ChatProvider with ChangeNotifier {
       attachmentType: attachmentType,
     );
 
-    // Optimistic update
     _currentChat!.messages.add(userMsg);
     notifyListeners();
 
-    // Save user message to DB
     if (!_isTempMode) {
-      // If it's the first message, save the chat first
       if (_currentChat!.messages.length == 1) {
-         // Generate title asynchronously
          final userContent = content;
          final modelId = _settingsProvider.settings.selectedModelId!;
-         final chatId = _currentChat!.id; // Capture ID to avoid race conditions
+         final chatId = _currentChat!.id;
          
          _settingsProvider.apiService.generateTitle(userContent, modelId).then((title) {
-             // 1. Update in Database
-             // We need to fetch the chat afresh or just update the specific field to be safe,
-             // but since we have the object in memory and it's just a title update:
              _dbService.renameChat(chatId, title);
 
-             // 2. Update in History List (_chats)
              final chatInListIndex = _chats.indexWhere((c) => c.id == chatId);
              if (chatInListIndex != -1) {
                  _chats[chatInListIndex].title = title;
              }
 
-             // 3. Update Current Chat if still active
              if (_currentChat != null && _currentChat!.id == chatId) {
                  _currentChat!.title = title;
              }
@@ -407,11 +406,16 @@ class ChatProvider with ChangeNotifier {
              notifyListeners();
          });
 
-         // Set temporary title first
          _currentChat!.title = content.length > 30 ? '${content.substring(0, 30)}...' : content;
          await _dbService.insertChat(_currentChat!);
-         // Refresh chat list to show new chat
-         _loadChats();  
+         await _loadChats();
+
+         final newChatIndex = _chats.indexWhere((c) => c.id == chatId);
+         if (newChatIndex != -1) {
+             final messages = _currentChat!.messages;
+             _currentChat = _chats[newChatIndex];
+             _currentChat!.messages = messages;
+         }
       }
       await _dbService.insertMessage(userMsg, false);
     }
@@ -426,18 +430,15 @@ class ChatProvider with ChangeNotifier {
       if (lastMsg.role != MessageRole.assistant) return;
       
       try {
-          // Remove last message
           _currentChat!.messages.removeLast();
           if (!_isTempMode) {
               await _dbService.deleteMessage(lastMsg.id);
           }
           notifyListeners();
           
-          // Get User Content from preceding message
           if (_currentChat!.messages.isEmpty) return;
           final userMsg = _currentChat!.messages.last;
           
-          // Use current setting
           final useWebSearch = _settingsProvider.settings.useWebSearch;
           
           await _generateAssistantResponse(userMsg.content, useWebSearch: useWebSearch);
@@ -446,53 +447,45 @@ class ChatProvider with ChangeNotifier {
       }
   }
 
-  /// Edit a user message and regenerate the response
   Future<void> editMessage(String messageId, String newContent) async {
     if (_currentChat == null) return;
     
-    // Find the message index
     final msgIndex = _currentChat!.messages.indexWhere((m) => m.id == messageId);
     if (msgIndex == -1) return;
     
     final originalMsg = _currentChat!.messages[msgIndex];
-    if (originalMsg.role != MessageRole.user) return; // Only edit user messages
+    if (originalMsg.role != MessageRole.user) return;
     
-    // Create updated message with isEdited flag
     final updatedMsg = originalMsg.copyWith(
       content: newContent,
       isEdited: true,
     );
     
-    // Delete all messages after this one (including AI responses)
     final messagesToDelete = _currentChat!.messages.skip(msgIndex + 1).toList();
     
     if (!_isTempMode) {
       for (final msg in messagesToDelete) {
         await _dbService.deleteMessage(msg.id);
       }
-      // Update the edited message in DB
       await _dbService.updateMessage(updatedMsg);
     }
     
-    // Update local state
     _currentChat!.messages[msgIndex] = updatedMsg;
     _currentChat!.messages.removeRange(msgIndex + 1, _currentChat!.messages.length);
     notifyListeners();
     
-    // Regenerate response
     final useWebSearch = _settingsProvider.settings.useWebSearch;
     await _generateAssistantResponse(newContent, useWebSearch: useWebSearch);
   }
 
-  // Analytics Getters
-  
-  /// Total tokens used in current session (all messages)
   int get totalTokensInCurrentChat {
     if (_currentChat == null) return 0;
     return _currentChat!.messages.fold(0, (sum, msg) => sum + msg.totalTokens);
   }
   
-  /// Get token usage by message (for display)
+  // Active generation tracking
+
+  
   Map<String, int> getTokenUsageForMessage(String messageId) {
     if (_currentChat == null) return {};
     final msg = _currentChat!.messages.where((m) => m.id == messageId).firstOrNull;
@@ -504,13 +497,13 @@ class ChatProvider with ChangeNotifier {
     };
   }
 
+
   Future<void> _generateAssistantResponse(String userPrompt, {bool useWebSearch = false}) async {
-    // Capture the current chat at the start of generation
     final targetChat = _currentChat;
     if (targetChat == null) return;
 
-    _abortGeneration = false; // Reset abort flag
-    _isTyping = true;
+    _abortGeneration = false;
+    _activeGenerations.add(targetChat.id); // Add to active set
     _generationStartTime = DateTime.now();
     notifyListeners();
 
@@ -565,10 +558,31 @@ class ChatProvider with ChangeNotifier {
               );
               targetChat.messages.add(assistantMsg);
               hasAddedMessage = true;
+              
+              // Insert into DB immediately so it's visible if we reload the chat
+              if (!targetChat.isTemp) {
+                 await _dbService.insertMessage(assistantMsg, false);
+              }
           }
 
           fullResponse += chunk.content!;
           
+          // CHECK IF USER HAS SWITCHED CHATS
+          // If the chat currently receiving the stream is NOT the active chat displayed in UI
+          if (_currentChat?.id != targetChat.id) {
+              // Mark as unread if not already marked
+              if (!targetChat.hasUnreadMessages) {
+                  targetChat.hasUnreadMessages = true;
+                  // We update the DB for this property
+                  // Since we are streaming, we probably don't want to hit DB on every chunk.
+                  // But we only do this ONCE when the transition from read -> unread happens.
+                  if (!targetChat.isTemp) {
+                      // We can just update the chat object completely or use a specific update
+                       _dbService.updateChat(targetChat);
+                  }
+              }
+          }
+
           // Voice Mode: Streaming TTS
           // Note: Voice mode logic might still rely on "isListening" or global state, 
           // but sticking to targetChat for message data is key.
@@ -590,11 +604,6 @@ class ChatProvider with ChangeNotifier {
           }
           
           // Update the message in the list
-          // We need to find the message in the targetChat to be safe, or just use `.last` if we are sure
-          // Since we are the only ones adding to THIS chat's end during generation (usually), .last is okay,
-          // but purely for safety, let's make sure we are editing the right instance if reference changed?
-          // No, targetChat.messages is a reference to the list.
-          
           if (targetChat.messages.isNotEmpty && targetChat.messages.last.id == assistantMsgId) {
              targetChat.messages.last = Message(
                 id: assistantMsgId,
@@ -606,7 +615,7 @@ class ChatProvider with ChangeNotifier {
           }
 
           // Throttled Haptic Feedback
-          if (!_isContinuousVoiceMode) {
+          if (!_isContinuousVoiceMode && _currentChat?.id == targetChat.id) { // Only vibrate if viewing the chat
               final now = DateTime.now().millisecondsSinceEpoch;
               if (now - lastHapticTime > 80) {
                   HapticFeedback.selectionClick();
@@ -632,9 +641,9 @@ class ChatProvider with ChangeNotifier {
                 completionTokens: completionTokens,
               );
               
-              // Save assistant message to DB
+              // Update final message in DB
               if (!targetChat.isTemp) {
-                 await _dbService.insertMessage(targetChat.messages.last, false);
+                 await _dbService.updateMessage(targetChat.messages.last);
               }
            }
       }
@@ -653,13 +662,7 @@ class ChatProvider with ChangeNotifier {
         timestamp: DateTime.now(),
       ));
     } finally {
-      // Only turn off typing if we are still viewing the same chat? 
-      // Or just turn it off globally? 
-      // The _isTyping flag is global in this provider. If we switch chats, the new chat might not be typing.
-      // But we can't easily validly know if "another" chat is typing. 
-      // For now, turning it off globally is the safest existing behavior, 
-      // though it might hide the typing indicator if we switched back to the generating chat.
-      _isTyping = false;
+      _activeGenerations.remove(targetChat.id);
       _generationStartTime = null;
       notifyListeners();
     }

@@ -24,7 +24,7 @@ class DatabaseService {
     String path = join(await getDatabasesPath(), AppConstants.dbName);
     return await openDatabase(
       path,
-      version: 4, // Incremented for pin chat feature
+      version: 5, // Incremented for unread messages feature
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -38,7 +38,8 @@ class DatabaseService {
         created_at TEXT,
         updated_at TEXT,
         system_prompt TEXT,
-        is_pinned INTEGER DEFAULT 0
+        is_pinned INTEGER DEFAULT 0,
+        has_unread_messages INTEGER DEFAULT 0
       )
     ''');
     
@@ -91,6 +92,15 @@ class DatabaseService {
            await db.execute('ALTER TABLE ${AppConstants.tableNameChats} ADD COLUMN is_pinned INTEGER DEFAULT 0');
        }
     }
+    if (oldVersion < 5) {
+       // Add has_unread_messages column
+       final columns = await db.rawQuery('PRAGMA table_info(${AppConstants.tableNameChats})');
+       final columnNames = columns.map((c) => c['name']).toSet();
+       
+       if (!columnNames.contains('has_unread_messages')) {
+           await db.execute('ALTER TABLE ${AppConstants.tableNameChats} ADD COLUMN has_unread_messages INTEGER DEFAULT 0');
+       }
+    }
   }
 
   // Chat Operations
@@ -122,6 +132,16 @@ class DatabaseService {
       where: 'id = ?',
       whereArgs: [chat.id],
     );
+  }
+
+  Future<void> markChatRead(String chatId) async {
+      final db = await database;
+      await db.update(
+          AppConstants.tableNameChats,
+          {'has_unread_messages': 0},
+          where: 'id = ?',
+          whereArgs: [chatId],
+      );
   }
 
   Future<void> deleteChat(String id) async {

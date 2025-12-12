@@ -9,6 +9,7 @@ class ChatSession {
   final bool isTemp;
   String? systemPrompt;
   bool isPinned;
+  bool hasUnreadMessages;
 
   ChatSession({
     required this.id,
@@ -19,6 +20,7 @@ class ChatSession {
     this.isTemp = false,
     this.systemPrompt,
     this.isPinned = false,
+    this.hasUnreadMessages = false,
   }) : messages = messages ?? [];
 
   Map<String, dynamic> toMap() {
@@ -29,6 +31,7 @@ class ChatSession {
       'updated_at': updatedAt.toIso8601String(),
       'system_prompt': systemPrompt,
       'is_pinned': isPinned ? 1 : 0,
+      'has_unread_messages': hasUnreadMessages ? 1 : 0,
     };
   }
 
@@ -42,6 +45,7 @@ class ChatSession {
       isTemp: false,
       systemPrompt: map['system_prompt'],
       isPinned: map['is_pinned'] == 1,
+      hasUnreadMessages: map['has_unread_messages'] == 1,
     );
   }
 }
