@@ -426,8 +426,11 @@ class _ChatScreenState extends State<ChatScreen> {
                        Positioned.fill(
                            child: GestureDetector(
                                onTap: () {
-                                   FocusScope.of(context).unfocus();
                                    Navigator.pop(context);
+                                   // Unfocus after popup closes to prevent keyboard from reopening
+                                   WidgetsBinding.instance.addPostFrameCallback((_) {
+                                       FocusManager.instance.primaryFocus?.unfocus();
+                                   });
                                },
                                behavior: HitTestBehavior.opaque,
                                child: Container(color: Colors.black.withValues(alpha: 0.4)),
@@ -802,8 +805,11 @@ class _ChatScreenState extends State<ChatScreen> {
                        Positioned.fill(
                            child: GestureDetector(
                                onTap: () {
-                                   FocusScope.of(context).unfocus();
                                    Navigator.pop(context);
+                                   // Unfocus after popup closes to prevent keyboard from reopening
+                                   WidgetsBinding.instance.addPostFrameCallback((_) {
+                                       FocusManager.instance.primaryFocus?.unfocus();
+                                   });
                                },
                                behavior: HitTestBehavior.opaque,
                                child: Container(color: Colors.black.withValues(alpha: 0.4)),
