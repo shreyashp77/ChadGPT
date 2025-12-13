@@ -35,6 +35,7 @@ class _ChatScreenState extends State<ChatScreen> {
   bool _hasScrolledForGeneration = false; // Prevents continuous scrolling during generation
 
   bool _useWebSearch = false; // Local state for search
+  bool _useImageCreate = false; // Local state for image creation mode
 
   void _scrollToBottom({bool isImmediate = false}) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -67,7 +68,29 @@ class _ChatScreenState extends State<ChatScreen> {
     super.initState();
     _scrollController.addListener(_scrollListener);
     _textController.addListener(() {
-        if (mounted) setState(() {});
+        if (mounted) {
+          // Auto-detect /create command and enable image mode
+          final text = _textController.text;
+          if (!_useImageCreate && text.toLowerCase().startsWith('/create ')) {
+            // Enable image mode and remove /create from text - use post frame to avoid issues
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted && _textController.text.toLowerCase().startsWith('/create ')) {
+                final newText = _textController.text.substring(8);
+                _textController.text = newText;
+                _textController.selection = TextSelection.fromPosition(
+                  TextPosition(offset: newText.length),
+                );
+                setState(() => _useImageCreate = true);
+              }
+            });
+          } else if (!_useImageCreate && text.toLowerCase() == '/create') {
+            // Just /create typed (without space) - wait for space or detect on blur
+            // For now, just trigger setState for UI updates
+            setState(() {});
+          } else {
+            setState(() {});
+          }
+        }
     });
     // Start a new chat immediately if none exists
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -285,15 +308,15 @@ class _ChatScreenState extends State<ChatScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                            // Top: Feature Chips (Web Search, Attachments, Image Mode)
-                           if (_useWebSearch || _pendingAttachmentPath != null || _textController.text.toLowerCase().startsWith('/create'))
+                           if (_useWebSearch || _pendingAttachmentPath != null || _useImageCreate)
                              Padding(
                                padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
                                child: SingleChildScrollView(
                                  scrollDirection: Axis.horizontal,
                                  child: Row(
                                    children: [
-                                     // Image mode chip when /create is typed
-                                     if (_textController.text.toLowerCase().startsWith('/create'))
+                                     // Image mode chip
+                                     if (_useImageCreate)
                                        Padding(
                                          padding: const EdgeInsets.only(right: 6),
                                          child: _buildFeatureChip(
@@ -301,16 +324,7 @@ class _ChatScreenState extends State<ChatScreen> {
                                            icon: Icons.brush,
                                            label: 'Image',
                                            chipColor: Theme.of(context).colorScheme.primary,
-                                           onRemove: () {
-                                             // Remove /create from the text
-                                             final text = _textController.text;
-                                             if (text.toLowerCase().startsWith('/create ')) {
-                                               _textController.text = text.substring(8);
-                                             } else if (text.toLowerCase().startsWith('/create')) {
-                                               _textController.text = text.substring(7);
-                                             }
-                                             setState(() {});
-                                           },
+                                           onRemove: () => setState(() => _useImageCreate = false),
                                          ),
                                        ),
                                      if (_useWebSearch)
@@ -610,39 +624,19 @@ class _ChatScreenState extends State<ChatScreen> {
                                        const SizedBox(height: 10),
 
                                        // Create Image
-                                       Builder(
-                                         builder: (context) {
-                                           final isCreateMode = _textController.text.toLowerCase().startsWith('/create');
-                                           return _buildFloatingOption(
-                                               context,
-                                               icon: Icons.brush,
-                                               label: isCreateMode ? 'Image On' : 'Create Image',
-                                               bgColor: isCreateMode ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.surfaceContainerHighest,
-                                               iconColor: isCreateMode ? Colors.white : Theme.of(context).colorScheme.onSurface,
-                                               onTap: () {
-                                                   Navigator.pop(context);
-                                                   HapticFeedback.lightImpact();
-                                                   if (isCreateMode) {
-                                                     // Remove /create from text
-                                                     final text = _textController.text;
-                                                     if (text.toLowerCase().startsWith('/create ')) {
-                                                       _textController.text = text.substring(8);
-                                                     } else if (text.toLowerCase().startsWith('/create')) {
-                                                       _textController.text = text.substring(7);
-                                                     }
-                                                   } else {
-                                                     // Add /create to the input
-                                                     _textController.text = '/create ${_textController.text}';
-                                                     _textController.selection = TextSelection.fromPosition(
-                                                         TextPosition(offset: _textController.text.length),
-                                                     );
-                                                   }
-                                                   setState(() {});
-                                               },
-                                               alignLeft: true,
-                                           ).animate().slideY(begin: 0.5, end: 0, duration: 200.ms, delay: 250.ms).fadeIn();
-                                         },
-                                       ),
+                                       _buildFloatingOption(
+                                           context,
+                                           icon: Icons.brush,
+                                           label: _useImageCreate ? 'Image On' : 'Create Image',
+                                           bgColor: _useImageCreate ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.surfaceContainerHighest,
+                                           iconColor: _useImageCreate ? Colors.white : Theme.of(context).colorScheme.onSurface,
+                                           onTap: () {
+                                               Navigator.pop(context);
+                                               HapticFeedback.lightImpact();
+                                               setState(() => _useImageCreate = !_useImageCreate);
+                                           },
+                                           alignLeft: true,
+                                       ).animate().slideY(begin: 0.5, end: 0, duration: 200.ms, delay: 250.ms).fadeIn(),
                                    ],
                                ),
                            ),
@@ -1060,16 +1054,23 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Future<void> _sendMessage() async {
     final chatProvider = context.read<ChatProvider>();
-    final text = _textController.text;
+    var text = _textController.text;
     final path = _pendingAttachmentPath;
     final type = _pendingAttachmentType;
     final useSearch = _useWebSearch;
+    final useImageCreate = _useImageCreate;
+    
+    // Prepend /create if image mode is active
+    if (useImageCreate && text.trim().isNotEmpty) {
+      text = '/create $text';
+    }
     
     _textController.clear();
     setState(() {
         _pendingAttachmentPath = null;
         _pendingAttachmentType = null; 
-        _useWebSearch = false; 
+        _useWebSearch = false;
+        _useImageCreate = false;
     });
 
     try {
