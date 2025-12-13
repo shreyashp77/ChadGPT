@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -385,6 +386,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       Icons.search, 
                       (val) => settingsProvider.updateSettings(searxngUrl: val),
                       labelTrailing: searxngStatusDot
+                   ),
+                   const SizedBox(height: 12),
+                   SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: () => _scanForSearXNG(context, settingsProvider),
+                        icon: const Icon(Icons.search, size: 18),
+                        label: const Text('Auto-detect SearXNG'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Theme.of(context).colorScheme.primary,
+                          side: BorderSide(color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.5)),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                      ),
                    ),
                 ] else if (settings.searchProvider == SearchProvider.brave) ...[
                    _buildInputField(
@@ -870,6 +886,204 @@ class _SettingsScreenState extends State<SettingsScreen> {
       }
       
       final batchSize = 50;
+      for (var i = 0; i < futures.length; i += batchSize) {
+        final batch = futures.skip(i).take(batchSize).toList();
+        await Future.wait(batch);
+      }
+    }
+    
+    onProgress?.call('Scan complete');
+    return foundServers;
+  }
+
+  void _scanForSearXNG(BuildContext context, SettingsProvider settingsProvider) {
+    String statusText = 'Starting scan...';
+    List<String> foundServers = [];
+    bool isScanning = true;
+    
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          // Start scan on first build
+          if (isScanning && foundServers.isEmpty && statusText == 'Starting scan...') {
+            _scanNetworkForSearXNG(
+              onProgress: (status) {
+                if (context.mounted) {
+                  setDialogState(() => statusText = status);
+                }
+              },
+              onServerFound: (url) {
+                if (context.mounted) {
+                  setDialogState(() => foundServers.add(url));
+                }
+              },
+            ).then((_) {
+              if (context.mounted) {
+                setDialogState(() {
+                  isScanning = false;
+                  statusText = foundServers.isEmpty ? 'No SearXNG servers found' : 'Found ${foundServers.length} server(s)';
+                });
+              }
+            });
+          }
+          
+          return AlertDialog(
+            backgroundColor: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF2C2C2C) : Colors.white,
+            title: Row(
+              children: [
+                Icon(Icons.search, color: Theme.of(context).colorScheme.primary),
+                const SizedBox(width: 8),
+                const Text('Scanning Network'),
+              ],
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (isScanning)
+                  const LinearProgressIndicator(),
+                const SizedBox(height: 12),
+                Text(statusText, style: TextStyle(color: Theme.of(context).brightness == Brightness.dark ? Colors.white70 : Colors.black54)),
+                if (foundServers.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  const Text('Found servers:', style: TextStyle(fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 8),
+                  ...foundServers.map((url) => InkWell(
+                    onTap: () {
+                      _searxngController.text = url;
+                      settingsProvider.updateSettings(searxngUrl: url);
+                      Navigator.pop(ctx);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('SearXNG server set to $url'), backgroundColor: Colors.green),
+                      );
+                    },
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      child: Row(
+                        children: [
+                          Icon(Icons.search_outlined, color: Theme.of(context).colorScheme.primary, size: 20),
+                          const SizedBox(width: 8),
+                          Expanded(child: Text(url, style: const TextStyle(fontWeight: FontWeight.w500))),
+                          Icon(Icons.arrow_forward_ios, size: 14, color: Theme.of(context).colorScheme.primary),
+                        ],
+                      ),
+                    ),
+                  )),
+                ],
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: Text(isScanning ? 'Cancel' : 'Close'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Future<List<String>> _scanNetworkForSearXNG({
+    void Function(String status)? onProgress,
+    void Function(String url)? onServerFound,
+  }) async {
+    final foundServers = <String>[];
+    const ports = [8080, 8081]; 
+    const timeout = Duration(milliseconds: 2000); 
+    
+    // Get local subnets dynamically
+    final subnets = <String>{};
+    print("DEBUG: Starting SearXNG Network Scan");
+    
+    try {
+      final interfaces = await NetworkInterface.list(
+        type: InternetAddressType.IPv4, 
+        includeLinkLocal: false,
+      );
+      for (var interface in interfaces) {
+        print("DEBUG: Found interface: ${interface.name}");
+        for (var addr in interface.addresses) {
+            print("DEBUG: Address: ${addr.address}");
+            if (!addr.isLoopback) {
+                final parts = addr.address.split('.');
+                if (parts.length == 4) {
+                    final subnet = '${parts[0]}.${parts[1]}.${parts[2]}.';
+                    subnets.add(subnet);
+                    print("DEBUG: Added subnet: $subnet");
+                }
+            }
+        }
+      }
+    } catch (e) {
+      print("DEBUG: Error getting network interfaces: $e");
+    }
+
+    // Fallback patterns if no interfaces found
+    if (subnets.isEmpty) {
+        print("DEBUG: No subnets detected, using fallbacks");
+        subnets.addAll([
+          '192.168.1.',
+          '192.168.0.',
+          '10.0.0.',
+          '172.16.0.',
+        ]);
+    }
+    
+    final localUrls = [
+      for (var port in ports) ...[
+        'http://localhost:$port', 
+        'http://127.0.0.1:$port',
+        'http://10.0.2.2:$port', // Android Emulator -> Host
+        'http://10.0.3.2:$port', // Genymotion -> Host
+      ]
+    ];
+    
+    onProgress?.call('Checking localhost...');
+    for (var url in localUrls) {
+      // print("DEBUG: Checking $url");
+      try {
+        final response = await http.get(
+          Uri.parse('$url/search?q=test&format=json'),
+        ).timeout(timeout);
+        if (response.statusCode == 200) {
+          print("DEBUG: Found SearXNG at $url");
+          foundServers.add(url);
+          onServerFound?.call(url);
+        }
+      } catch (_) {}
+    }
+    
+    for (var subnet in subnets) {
+      onProgress?.call('Scanning $subnet*...');
+      print("DEBUG: Scanning subnet $subnet*");
+      
+      final futures = <Future<void>>[];
+      
+      for (var i = 1; i <= 254; i++) {
+        final ip = '$subnet$i';
+        
+        for (var port in ports) {
+             final url = 'http://$ip:$port';
+             futures.add((() async {
+              try {
+                final response = await http.get(
+                  Uri.parse('$url/search?q=test&format=json'),
+                ).timeout(timeout);
+                if (response.statusCode == 200) {
+                  print("DEBUG: Found SearXNG at $url");
+                  foundServers.add(url);
+                  onServerFound?.call(url);
+                }
+              } catch (_) {}
+            })());
+        }
+      }
+      
+      // Smaller batch size to prevent network congestion
+      final batchSize = 25;
       for (var i = 0; i < futures.length; i += batchSize) {
         final batch = futures.skip(i).take(batchSize).toList();
         await Future.wait(batch);
