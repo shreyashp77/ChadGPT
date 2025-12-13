@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../providers/settings_provider.dart';
 import '../models/app_settings.dart';
+import '../services/comfyui_service.dart';
 import '../utils/theme.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -573,8 +574,113 @@ class _SettingsScreenState extends State<SettingsScreen> {
               (val) => settingsProvider.updateSettings(comfyuiUrl: val),
               hintText: 'http://192.168.1.100:8188',
             ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () => _scanForComfyUI(context, settingsProvider),
+                icon: const Icon(Icons.search, size: 18),
+                label: const Text('Auto-detect ComfyUI'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Theme.of(context).colorScheme.primary,
+                  side: BorderSide(color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.5)),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+            ),
           ],
         ),
+      ),
+    );
+  }
+  
+  void _scanForComfyUI(BuildContext context, SettingsProvider settingsProvider) {
+    String statusText = 'Starting scan...';
+    List<String> foundServers = [];
+    bool isScanning = true;
+    
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          // Start scan on first build
+          if (isScanning && foundServers.isEmpty && statusText == 'Starting scan...') {
+            ComfyuiService.scanNetwork(
+              onProgress: (status) {
+                if (context.mounted) {
+                  setDialogState(() => statusText = status);
+                }
+              },
+              onServerFound: (url) {
+                if (context.mounted) {
+                  setDialogState(() => foundServers.add(url));
+                }
+              },
+            ).then((_) {
+              if (context.mounted) {
+                setDialogState(() {
+                  isScanning = false;
+                  statusText = foundServers.isEmpty ? 'No ComfyUI servers found' : 'Found ${foundServers.length} server(s)';
+                });
+              }
+            });
+          }
+          
+          return AlertDialog(
+            backgroundColor: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF2C2C2C) : Colors.white,
+            title: Row(
+              children: [
+                Icon(Icons.search, color: Theme.of(context).colorScheme.primary),
+                const SizedBox(width: 8),
+                const Text('Scanning Network'),
+              ],
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (isScanning)
+                  const LinearProgressIndicator(),
+                const SizedBox(height: 12),
+                Text(statusText, style: TextStyle(color: Theme.of(context).brightness == Brightness.dark ? Colors.white70 : Colors.black54)),
+                if (foundServers.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  const Text('Found servers:', style: TextStyle(fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 8),
+                  ...foundServers.map((url) => InkWell(
+                    onTap: () {
+                      _comfyuiController.text = url;
+                      settingsProvider.updateSettings(comfyuiUrl: url);
+                      Navigator.pop(ctx);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('ComfyUI server set to $url'), backgroundColor: Colors.green),
+                      );
+                    },
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      child: Row(
+                        children: [
+                          Icon(Icons.computer, color: Theme.of(context).colorScheme.primary, size: 20),
+                          const SizedBox(width: 8),
+                          Expanded(child: Text(url, style: const TextStyle(fontWeight: FontWeight.w500))),
+                          Icon(Icons.arrow_forward_ios, size: 14, color: Theme.of(context).colorScheme.primary),
+                        ],
+                      ),
+                    ),
+                  )),
+                ],
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: Text(isScanning ? 'Cancel' : 'Close'),
+              ),
+            ],
+          );
+        },
       ),
     );
   }

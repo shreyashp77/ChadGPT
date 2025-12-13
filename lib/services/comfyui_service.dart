@@ -106,6 +106,80 @@ class ComfyuiService {
     }
   }
 
+  /// Scan common local network ranges for ComfyUI servers
+  /// Returns a list of discovered server URLs
+  static Future<List<String>> scanNetwork({
+    void Function(String status)? onProgress,
+    void Function(String url)? onServerFound,
+  }) async {
+    final foundServers = <String>[];
+    const port = 8188; // ComfyUI default port
+    const timeout = Duration(milliseconds: 800);
+    
+    // Common local network patterns to scan
+    final patterns = [
+      '192.168.1.',
+      '192.168.0.',
+      '10.0.0.',
+      '172.16.0.',
+    ];
+    
+    // Also try localhost
+    final localUrls = [
+      'http://localhost:$port',
+      'http://127.0.0.1:$port',
+    ];
+    
+    // Quick check localhost first
+    onProgress?.call('Checking localhost...');
+    for (var url in localUrls) {
+      try {
+        final response = await http.get(
+          Uri.parse('$url/system_stats'),
+        ).timeout(timeout);
+        if (response.statusCode == 200) {
+          foundServers.add(url);
+          onServerFound?.call(url);
+        }
+      } catch (_) {}
+    }
+    
+    // Scan network ranges - check in batches for speed
+    for (var pattern in patterns) {
+      onProgress?.call('Scanning $pattern*...');
+      
+      // Create futures for parallel scanning
+      final futures = <Future<void>>[];
+      
+      for (var i = 1; i <= 254; i++) {
+        final ip = '$pattern$i';
+        final url = 'http://$ip:$port';
+        
+        futures.add((() async {
+          try {
+            final response = await http.get(
+              Uri.parse('$url/system_stats'),
+            ).timeout(timeout);
+            if (response.statusCode == 200) {
+              foundServers.add(url);
+              onServerFound?.call(url);
+            }
+          } catch (_) {}
+        })());
+      }
+      
+      // Run in smaller batches to avoid overwhelming the network
+      final batchSize = 50;
+      for (var i = 0; i < futures.length; i += batchSize) {
+        final batch = futures.skip(i).take(batchSize).toList();
+        await Future.wait(batch);
+      }
+    }
+    
+    onProgress?.call('Scan complete');
+    return foundServers;
+  }
+
   /// Queue a prompt for image generation
   /// Returns the prompt_id for tracking progress
   Future<String> queuePrompt(String prompt) async {
