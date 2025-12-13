@@ -72,7 +72,7 @@ class MediaHistorySheet extends StatelessWidget {
                   ],
                 ),
                 if (imageMessages.isNotEmpty)
-                  TextButton.icon(
+                    TextButton.icon(
                     onPressed: () {
                       showDialog(
                         context: context,
@@ -80,7 +80,7 @@ class MediaHistorySheet extends StatelessWidget {
                           backgroundColor: Theme.of(context).colorScheme.surfaceContainer,
                           title: const Text('Clear All Images?'),
                           content: const Text(
-                            'This will delete all generated images from the ComfyUI server. This action cannot be undone.',
+                            'This will remove all generated images from this chat. Images will remain in ComfyUI output folder.',
                           ),
                           actions: [
                             TextButton(
@@ -93,14 +93,14 @@ class MediaHistorySheet extends StatelessWidget {
                                 Navigator.pop(context);
                                 chatProvider.clearGeneratedImages();
                               },
-                              child: const Text('Delete', style: TextStyle(color: Colors.red)),
+                              child: const Text('Clear', style: TextStyle(color: Colors.orange)),
                             ),
                           ],
                         ),
                       );
                     },
-                    icon: const Icon(Icons.delete_outline, size: 18, color: Colors.red),
-                    label: const Text('Clear All', style: TextStyle(color: Colors.red)),
+                    icon: const Icon(Icons.clear_all, size: 18, color: Colors.orange),
+                    label: const Text('Clear All', style: TextStyle(color: Colors.orange)),
                   ),
               ],
             ),

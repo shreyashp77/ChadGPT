@@ -44,7 +44,12 @@ class Message {
   // Helper to get total tokens for this message
   int get totalTokens => (promptTokens ?? 0) + (completionTokens ?? 0);
 
+  // Sentinel value for explicitly setting nullable fields to null
+  static const _unset = Object();
+  
   // Create a copy with updated fields
+  // For nullable fields (generatedImageUrl, comfyuiFilename), pass the sentinel _unset
+  // to keep existing value, or pass null explicitly to clear them
   Message copyWith({
     String? id,
     String? chatId,
@@ -57,8 +62,8 @@ class Message {
     int? promptTokens,
     int? completionTokens,
     bool? isEdited,
-    String? generatedImageUrl,
-    String? comfyuiFilename,
+    Object? generatedImageUrl = _unset,
+    Object? comfyuiFilename = _unset,
     bool? isImageGenerating,
     double? imageProgress,
   }) {
@@ -74,8 +79,12 @@ class Message {
       promptTokens: promptTokens ?? this.promptTokens,
       completionTokens: completionTokens ?? this.completionTokens,
       isEdited: isEdited ?? this.isEdited,
-      generatedImageUrl: generatedImageUrl ?? this.generatedImageUrl,
-      comfyuiFilename: comfyuiFilename ?? this.comfyuiFilename,
+      generatedImageUrl: generatedImageUrl == _unset 
+          ? this.generatedImageUrl 
+          : generatedImageUrl as String?,
+      comfyuiFilename: comfyuiFilename == _unset 
+          ? this.comfyuiFilename 
+          : comfyuiFilename as String?,
       isImageGenerating: isImageGenerating ?? this.isImageGenerating,
       imageProgress: imageProgress ?? this.imageProgress,
     );

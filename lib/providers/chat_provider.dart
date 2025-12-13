@@ -602,18 +602,13 @@ class ChatProvider with ChangeNotifier {
     }
   }
   
-  /// Clear all generated images from ComfyUI output folder for this chat
+  /// Clear all generated image references from this chat
+  /// Note: This only removes references in the app. Images remain in ComfyUI output folder.
   Future<void> clearGeneratedImages() async {
     if (_currentChat == null) return;
     
-    final comfyuiUrl = _settingsProvider.settings.comfyuiUrl;
-    if (comfyuiUrl == null || comfyuiUrl.isEmpty) return;
-    
     final filenames = generatedImages;
     if (filenames.isEmpty) return;
-    
-    final comfyui = ComfyuiService(comfyuiUrl);
-    await comfyui.deleteImages(filenames);
     
     // Update messages to remove image references
     for (var i = 0; i < _currentChat!.messages.length; i++) {
@@ -622,7 +617,7 @@ class ChatProvider with ChangeNotifier {
         _currentChat!.messages[i] = msg.copyWith(
           generatedImageUrl: null,
           comfyuiFilename: null,
-          content: 'Image deleted',
+          content: 'Image cleared from chat',
         );
         if (!_isTempMode) {
           await _dbService.updateMessage(_currentChat!.messages[i]);
