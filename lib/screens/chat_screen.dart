@@ -7,6 +7,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter/services.dart';
 import '../providers/chat_provider.dart';
 import '../providers/settings_provider.dart';
+import '../models/app_settings.dart';
 import '../models/message.dart';
 import '../utils/theme.dart';
 import '../widgets/message_bubble.dart';
@@ -538,21 +539,23 @@ class _ChatScreenState extends State<ChatScreen> {
                                        const SizedBox(height: 10),
 
                                        // Web Search Toggle
-                                       _buildFloatingOption(
-                                           context,
-                                           icon: Icons.public,
-                                           label: _useWebSearch ? 'Search On' : 'Web Search',
-                                           bgColor: _useWebSearch ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.surfaceContainerHighest,
-                                           iconColor: _useWebSearch ? Colors.white : Theme.of(context).colorScheme.onSurface,
-                                           onTap: () {
-                                               Navigator.pop(context);
-                                               HapticFeedback.lightImpact();
-                                               setState(() => _useWebSearch = !_useWebSearch);
-                                           },
-                                           alignLeft: true,
-                                       ).animate().slideY(begin: 0.5, end: 0, duration: 200.ms, delay: 50.ms).fadeIn(),
-                                       
-                                       const SizedBox(height: 10),
+                                       if (settingsProvider.settings.searchProvider != SearchProvider.none)
+                                         _buildFloatingOption(
+                                             context,
+                                             icon: Icons.public,
+                                             label: _useWebSearch ? 'Search On' : 'Web Search',
+                                             bgColor: _useWebSearch ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.surfaceContainerHighest,
+                                             iconColor: _useWebSearch ? Colors.white : Theme.of(context).colorScheme.onSurface,
+                                             onTap: () {
+                                                 Navigator.pop(context);
+                                                 HapticFeedback.lightImpact();
+                                                 setState(() => _useWebSearch = !_useWebSearch);
+                                             },
+                                             alignLeft: true,
+                                         ).animate().slideY(begin: 0.5, end: 0, duration: 200.ms, delay: 50.ms).fadeIn(),
+                                         
+                                         if (settingsProvider.settings.searchProvider != SearchProvider.none)
+                                            const SizedBox(height: 10),
 
                                        // Image from Gallery
                                        _buildFloatingOption(

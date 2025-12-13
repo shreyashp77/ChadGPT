@@ -116,6 +116,8 @@ class ApiService {
           return _searchGoogle(query);
         case SearchProvider.perplexity:
           return _searchPerplexity(query);
+        case SearchProvider.none:
+          return [];
         case SearchProvider.searxng:
         default:
           return _searchSearxng(query);

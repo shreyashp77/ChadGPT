@@ -1,5 +1,5 @@
 enum ApiProvider { lmStudio, openRouter }
-enum SearchProvider { searxng, brave, bing, google, perplexity }
+enum SearchProvider { searxng, brave, bing, google, perplexity, none }
 
 class AppSettings {
   String lmStudioUrl;

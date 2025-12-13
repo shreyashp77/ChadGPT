@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/app_settings.dart';
 import '../services/shared_prefs_service.dart';
 import '../services/api_service.dart';
+import '../services/comfyui_service.dart';
 import '../utils/constants.dart';
 
 class SettingsProvider with ChangeNotifier {
@@ -18,6 +19,7 @@ class SettingsProvider with ChangeNotifier {
   String? _error;
   bool _isSearxngConnected = false;
   bool _isOpenRouterConnected = false;
+  bool _isComfyUiConnected = false;
 
   AppSettings get settings => _settings;
   List<String> get availableModels => _availableModels;
@@ -26,6 +28,7 @@ class SettingsProvider with ChangeNotifier {
   String? get error => _error;
   bool get isSearxngConnected => _isSearxngConnected;
   bool get isOpenRouterConnected => _isOpenRouterConnected;
+  bool get isComfyUiConnected => _isComfyUiConnected;
   ApiService get apiService => _apiService;
 
   SettingsProvider() {
@@ -92,6 +95,11 @@ class SettingsProvider with ChangeNotifier {
         });
     }
 
+    // If ComfyUI URL changed, re-check connection
+    if (comfyuiUrl != null) {
+      checkComfyUiConnection();
+    }
+
     // If switching provider, clear current model selection and refetch
     if (apiProvider != null) {
       _settings = _settings.copyWith(selectedModelId: null);
@@ -138,6 +146,9 @@ class SettingsProvider with ChangeNotifier {
         _isSearxngConnected = value;
         notifyListeners();
     });
+    
+    // Check ComfyUI in parallel
+    checkComfyUiConnection();
 
     try {
       if (_settings.apiProvider == ApiProvider.openRouter) {
@@ -168,6 +179,18 @@ class SettingsProvider with ChangeNotifier {
       _isLoadingModels = false;
       notifyListeners();
     }
+  }
+
+
+  Future<void> checkComfyUiConnection() async {
+    if (_settings.comfyuiUrl == null || _settings.comfyuiUrl!.isEmpty) {
+      _isComfyUiConnected = false;
+      notifyListeners();
+      return;
+    }
+    final service = ComfyuiService(_settings.comfyuiUrl!);
+    _isComfyUiConnected = await service.checkConnection();
+    notifyListeners();
   }
 }
 

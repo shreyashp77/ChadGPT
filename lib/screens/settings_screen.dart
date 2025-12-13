@@ -90,13 +90,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 const SizedBox(height: 8),
                 _buildAppearanceCard(context, settings, settingsProvider),
                 
-                const SizedBox(height: 24),
-                
-                _buildSectionHeader('Image Generation'),
-                const SizedBox(height: 8),
-                _buildImageGenerationCard(context, settingsProvider),
 
-                const SizedBox(height: 24),
                  _buildSectionHeader('About'),
                  const SizedBox(height: 8),
                  _buildAboutCard(context),
@@ -219,6 +213,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final isSearxngConnected = settingsProvider.isSearxngConnected;
     final searxngStatusDot = _buildStatusDot(isSearxngConnected);
 
+    // ComfyUI Status
+    final isComfyUiConnected = settingsProvider.isComfyUiConnected;
+    final comfyUiStatusDot = _buildStatusDot(isComfyUiConnected);
+
     return _buildCard(
       context: context,
       child: Padding(
@@ -261,6 +259,50 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   obscureText: true,
                   hintText: 'sk-or-...',
               ),
+               const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: ElevatedButton(
+                    onPressed: settingsProvider.isLoadingModels ? null : () async {
+                        final scaffoldMessenger = ScaffoldMessenger.of(context);
+                        await settingsProvider.fetchModels();
+                        if (mounted) {
+                            String message;
+                            if (settingsProvider.error == null) {
+                                message = 'Connected! Found ${settingsProvider.availableModels.length} free models.';
+                            } else {
+                              final cleanError = settingsProvider.error!.replaceAll('Exception: ', '');
+                              message = 'Error: $cleanError';
+                            }
+                            scaffoldMessenger.showSnackBar(
+                                SnackBar(
+                                    content: Text(message),
+                                    behavior: SnackBarBehavior.floating,
+                                    padding: const EdgeInsets.all(16),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                )
+                            );
+                        }
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Theme.of(context).colorScheme.primary,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      elevation: 0,
+                    ),
+                    child: settingsProvider.isLoadingModels 
+                        ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) 
+                        : const Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.link),
+                              SizedBox(width: 8),
+                              Text('Test Connection', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                            ],
+                          ),
+                  ),
+                ),
             ],
             
             const SizedBox(height: 24),
@@ -294,6 +336,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                        DropdownMenuItem(value: SearchProvider.bing, child: Text('Bing Search')),
                        DropdownMenuItem(value: SearchProvider.google, child: Text('Google Search')),
                        DropdownMenuItem(value: SearchProvider.perplexity, child: Text('Perplexity AI')),
+                       DropdownMenuItem(value: SearchProvider.none, child: Text('None')),
                     ],
                     onChanged: (SearchProvider? newValue) {
                       if (newValue != null) {
@@ -305,108 +348,108 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             ),
 
-            const SizedBox(height: 16),
-            
-            if (settings.searchProvider == SearchProvider.searxng) ...[
-               _buildInputField(
-                  context, 
-                  'SearXNG URL', 
-                  _searxngController, 
-                  Icons.search, 
-                  (val) => settingsProvider.updateSettings(searxngUrl: val),
-                  labelTrailing: searxngStatusDot
-               ),
-            ] else if (settings.searchProvider == SearchProvider.brave) ...[
-               _buildInputField(
-                  context, 
-                  'Brave Search API Key', 
-                  _braveController, 
-                  Icons.key, 
-                  (val) => settingsProvider.updateSettings(braveApiKey: val),
-                  obscureText: true,
-               ),
-            ] else if (settings.searchProvider == SearchProvider.bing) ...[
-               _buildInputField(
-                  context, 
-                  'Bing Search API Key', 
-                  _bingController, 
-                  Icons.key, 
-                  (val) => settingsProvider.updateSettings(bingApiKey: val),
-                  obscureText: true,
-               ),
-            ] else if (settings.searchProvider == SearchProvider.google) ...[
-               _buildInputField(
-                  context, 
-                  'Google Search API Key', 
-                  _googleApiKeyController, 
-                  Icons.key, 
-                  (val) => settingsProvider.updateSettings(googleApiKey: val),
-                  obscureText: true,
-               ),
-               const SizedBox(height: 16),
-               _buildInputField(
-                  context, 
-                  'Google Search Engine ID (CX)', 
-                  _googleCxController, 
-                  Icons.numbers, 
-                  (val) => settingsProvider.updateSettings(googleCx: val),
-               ),
-            ] else if (settings.searchProvider == SearchProvider.perplexity) ...[
-               _buildInputField(
-                  context, 
-                  'Perplexity API Key', 
-                  _perplexityController, 
-                  Icons.key, 
-                  (val) => settingsProvider.updateSettings(perplexityApiKey: val),
-                  obscureText: true,
-               ),
+            if (settings.searchProvider != SearchProvider.none) ...[
+                const SizedBox(height: 16),
+                
+                if (settings.searchProvider == SearchProvider.searxng) ...[
+                   _buildInputField(
+                      context, 
+                      'SearXNG URL', 
+                      _searxngController, 
+                      Icons.search, 
+                      (val) => settingsProvider.updateSettings(searxngUrl: val),
+                      labelTrailing: searxngStatusDot
+                   ),
+                ] else if (settings.searchProvider == SearchProvider.brave) ...[
+                   _buildInputField(
+                      context, 
+                      'Brave Search API Key', 
+                      _braveController, 
+                      Icons.key, 
+                      (val) => settingsProvider.updateSettings(braveApiKey: val),
+                      obscureText: true,
+                   ),
+                ] else if (settings.searchProvider == SearchProvider.bing) ...[
+                   _buildInputField(
+                      context, 
+                      'Bing Search API Key', 
+                      _bingController, 
+                      Icons.key, 
+                      (val) => settingsProvider.updateSettings(bingApiKey: val),
+                      obscureText: true,
+                   ),
+                ] else if (settings.searchProvider == SearchProvider.google) ...[
+                   _buildInputField(
+                      context, 
+                      'Google Search API Key', 
+                      _googleApiKeyController, 
+                      Icons.key, 
+                      (val) => settingsProvider.updateSettings(googleApiKey: val),
+                      obscureText: true,
+                   ),
+                   const SizedBox(height: 16),
+                   _buildInputField(
+                      context, 
+                      'Google Search Engine ID (CX)', 
+                      _googleCxController, 
+                      Icons.numbers, 
+                      (val) => settingsProvider.updateSettings(googleCx: val),
+                   ),
+                ] else if (settings.searchProvider == SearchProvider.perplexity) ...[
+                   _buildInputField(
+                      context, 
+                      'Perplexity API Key', 
+                      _perplexityController, 
+                      Icons.key, 
+                      (val) => settingsProvider.updateSettings(perplexityApiKey: val),
+                      obscureText: true,
+                   ),
+                ],
             ],
-            const SizedBox(height: 20),
+            
+            /// ComfyUI Integration moved here
+            const SizedBox(height: 24),
+            Row(
+              children: [
+                Icon(
+                  Icons.auto_awesome,
+                  color: Theme.of(context).colorScheme.primary,
+                  size: 20,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'ComfyUI Integration',
+                  style: TextStyle(
+                    color: isDark ? Colors.white : Colors.black87,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            _buildInputField(
+              context,
+              'ComfyUI Server URL',
+              _comfyuiController,
+              Icons.image,
+              (val) => settingsProvider.updateSettings(comfyuiUrl: val),
+              hintText: 'http://192.168.1.100:8188',
+              labelTrailing: comfyUiStatusDot,
+            ),
+            const SizedBox(height: 12),
             SizedBox(
               width: double.infinity,
-              height: 50,
-              child: ElevatedButton(
-                onPressed: settingsProvider.isLoadingModels ? null : () async {
-                    final scaffoldMessenger = ScaffoldMessenger.of(context);
-                    await settingsProvider.fetchModels();
-                    if (mounted) {
-                        String message;
-                        if (settingsProvider.error == null) {
-                          if (isOpenRouter) {
-                            message = 'Connected! Found ${settingsProvider.availableModels.length} free models.';
-                          } else {
-                            message = 'Connected! Found ${settingsProvider.availableModels.length} models.';
-                          }
-                        } else {
-                          final cleanError = settingsProvider.error!.replaceAll('Exception: ', '');
-                          message = 'Error: $cleanError';
-                        }
-                        scaffoldMessenger.showSnackBar(
-                            SnackBar(
-                                content: Text(message),
-                                behavior: SnackBarBehavior.floating,
-                                padding: const EdgeInsets.all(16),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                            )
-                        );
-                    }
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Theme.of(context).colorScheme.primary,
-                  foregroundColor: Colors.white,
+              child: OutlinedButton.icon(
+                onPressed: () => _scanForComfyUI(context, settingsProvider),
+                icon: const Icon(Icons.search, size: 18),
+                label: const Text('Auto-detect ComfyUI'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Theme.of(context).colorScheme.primary,
+                  side: BorderSide(color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.5)),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  elevation: 0,
                 ),
-                child: settingsProvider.isLoadingModels 
-                    ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) 
-                    : const Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.link),
-                          SizedBox(width: 8),
-                          Text('Test Connection', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                        ],
-                      ),
               ),
             ),
           ],
