@@ -284,14 +284,35 @@ class _ChatScreenState extends State<ChatScreen> {
                         mainAxisSize: MainAxisSize.min,
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                           // Top: Feature Chips (Web Search, Attachments)
-                           if (_useWebSearch || _pendingAttachmentPath != null)
+                           // Top: Feature Chips (Web Search, Attachments, Image Mode)
+                           if (_useWebSearch || _pendingAttachmentPath != null || _textController.text.toLowerCase().startsWith('/create'))
                              Padding(
                                padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
                                child: SingleChildScrollView(
                                  scrollDirection: Axis.horizontal,
                                  child: Row(
                                    children: [
+                                     // Image mode chip when /create is typed
+                                     if (_textController.text.toLowerCase().startsWith('/create'))
+                                       Padding(
+                                         padding: const EdgeInsets.only(right: 6),
+                                         child: _buildFeatureChip(
+                                           context,
+                                           icon: Icons.brush,
+                                           label: 'Image',
+                                           chipColor: Theme.of(context).colorScheme.primary,
+                                           onRemove: () {
+                                             // Remove /create from the text
+                                             final text = _textController.text;
+                                             if (text.toLowerCase().startsWith('/create ')) {
+                                               _textController.text = text.substring(8);
+                                             } else if (text.toLowerCase().startsWith('/create')) {
+                                               _textController.text = text.substring(7);
+                                             }
+                                             setState(() {});
+                                           },
+                                         ),
+                                       ),
                                      if (_useWebSearch)
                                        Padding(
                                          padding: const EdgeInsets.only(right: 6),
@@ -585,6 +606,43 @@ class _ChatScreenState extends State<ChatScreen> {
                                            },
                                            alignLeft: true,
                                        ).animate().slideY(begin: 0.5, end: 0, duration: 200.ms, delay: 200.ms).fadeIn(),
+                                       
+                                       const SizedBox(height: 10),
+
+                                       // Create Image
+                                       Builder(
+                                         builder: (context) {
+                                           final isCreateMode = _textController.text.toLowerCase().startsWith('/create');
+                                           return _buildFloatingOption(
+                                               context,
+                                               icon: Icons.brush,
+                                               label: isCreateMode ? 'Image On' : 'Create Image',
+                                               bgColor: isCreateMode ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.surfaceContainerHighest,
+                                               iconColor: isCreateMode ? Colors.white : Theme.of(context).colorScheme.onSurface,
+                                               onTap: () {
+                                                   Navigator.pop(context);
+                                                   HapticFeedback.lightImpact();
+                                                   if (isCreateMode) {
+                                                     // Remove /create from text
+                                                     final text = _textController.text;
+                                                     if (text.toLowerCase().startsWith('/create ')) {
+                                                       _textController.text = text.substring(8);
+                                                     } else if (text.toLowerCase().startsWith('/create')) {
+                                                       _textController.text = text.substring(7);
+                                                     }
+                                                   } else {
+                                                     // Add /create to the input
+                                                     _textController.text = '/create ${_textController.text}';
+                                                     _textController.selection = TextSelection.fromPosition(
+                                                         TextPosition(offset: _textController.text.length),
+                                                     );
+                                                   }
+                                                   setState(() {});
+                                               },
+                                               alignLeft: true,
+                                           ).animate().slideY(begin: 0.5, end: 0, duration: 200.ms, delay: 250.ms).fadeIn();
+                                         },
+                                       ),
                                    ],
                                ),
                            ),
@@ -956,18 +1014,22 @@ class _ChatScreenState extends State<ChatScreen> {
        );
   }
 
-  Widget _buildFeatureChip(BuildContext context, {required IconData icon, required String label, required VoidCallback onRemove}) {
+  Widget _buildFeatureChip(BuildContext context, {required IconData icon, required String label, required VoidCallback onRemove, Color? chipColor}) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final hasCustomColor = chipColor != null;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: isDark ? Colors.white.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.05),
+        color: hasCustomColor 
+            ? chipColor.withValues(alpha: 0.2)
+            : (isDark ? Colors.white.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.05)),
         borderRadius: BorderRadius.circular(16),
+        border: hasCustomColor ? Border.all(color: chipColor.withValues(alpha: 0.5), width: 1) : null,
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 12, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7)),
+          Icon(icon, size: 12, color: hasCustomColor ? chipColor : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7)),
           const SizedBox(width: 5),
           ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 120),
@@ -976,7 +1038,7 @@ class _ChatScreenState extends State<ChatScreen> {
               style: TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.w500,
-                color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+                color: hasCustomColor ? chipColor : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
               ),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
@@ -988,7 +1050,7 @@ class _ChatScreenState extends State<ChatScreen> {
             child: Icon(
               Icons.close,
               size: 12,
-              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5),
+              color: hasCustomColor ? chipColor.withValues(alpha: 0.7) : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5),
             ),
           ),
         ],
