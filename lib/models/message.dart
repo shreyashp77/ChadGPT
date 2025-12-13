@@ -16,6 +16,12 @@ class Message {
   
   // Edit tracking
   final bool isEdited;
+  
+  // ComfyUI Image Generation
+  final String? generatedImageUrl;    // URL to fetch from ComfyUI
+  final String? comfyuiFilename;       // Filename in ComfyUI output folder
+  final bool isImageGenerating;        // Whether image is being generated
+  final double imageProgress;          // Progress 0.0-1.0
 
   Message({
     required this.id,
@@ -29,6 +35,10 @@ class Message {
     this.promptTokens,
     this.completionTokens,
     this.isEdited = false,
+    this.generatedImageUrl,
+    this.comfyuiFilename,
+    this.isImageGenerating = false,
+    this.imageProgress = 0.0,
   });
 
   // Helper to get total tokens for this message
@@ -47,6 +57,10 @@ class Message {
     int? promptTokens,
     int? completionTokens,
     bool? isEdited,
+    String? generatedImageUrl,
+    String? comfyuiFilename,
+    bool? isImageGenerating,
+    double? imageProgress,
   }) {
     return Message(
       id: id ?? this.id,
@@ -60,6 +74,10 @@ class Message {
       promptTokens: promptTokens ?? this.promptTokens,
       completionTokens: completionTokens ?? this.completionTokens,
       isEdited: isEdited ?? this.isEdited,
+      generatedImageUrl: generatedImageUrl ?? this.generatedImageUrl,
+      comfyuiFilename: comfyuiFilename ?? this.comfyuiFilename,
+      isImageGenerating: isImageGenerating ?? this.isImageGenerating,
+      imageProgress: imageProgress ?? this.imageProgress,
     );
   }
 
@@ -75,6 +93,8 @@ class Message {
       'prompt_tokens': promptTokens,
       'completion_tokens': completionTokens,
       'is_edited': isEdited ? 1 : 0,
+      'generated_image_url': generatedImageUrl,
+      'comfyui_filename': comfyuiFilename,
     };
   }
 
@@ -92,6 +112,8 @@ class Message {
       promptTokens: map['prompt_tokens'],
       completionTokens: map['completion_tokens'],
       isEdited: map['is_edited'] == 1,
+      generatedImageUrl: map['generated_image_url'],
+      comfyuiFilename: map['comfyui_filename'],
     );
   }
 }

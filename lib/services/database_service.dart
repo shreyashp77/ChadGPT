@@ -24,7 +24,7 @@ class DatabaseService {
     String path = join(await getDatabasesPath(), AppConstants.dbName);
     return await openDatabase(
       path,
-      version: 5, // Incremented for unread messages feature
+      version: 6, // Incremented for ComfyUI image generation
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -55,6 +55,8 @@ class DatabaseService {
         prompt_tokens INTEGER,
         completion_tokens INTEGER,
         is_edited INTEGER DEFAULT 0,
+        generated_image_url TEXT,
+        comfyui_filename TEXT,
         FOREIGN KEY (chat_id) REFERENCES ${AppConstants.tableNameChats} (id) ON DELETE CASCADE
       )
     ''');
@@ -99,6 +101,18 @@ class DatabaseService {
        
        if (!columnNames.contains('has_unread_messages')) {
            await db.execute('ALTER TABLE ${AppConstants.tableNameChats} ADD COLUMN has_unread_messages INTEGER DEFAULT 0');
+       }
+    }
+    if (oldVersion < 6) {
+       // Add ComfyUI image generation columns
+       final columns = await db.rawQuery('PRAGMA table_info(${AppConstants.tableNameMessages})');
+       final columnNames = columns.map((c) => c['name']).toSet();
+       
+       if (!columnNames.contains('generated_image_url')) {
+           await db.execute('ALTER TABLE ${AppConstants.tableNameMessages} ADD COLUMN generated_image_url TEXT');
+       }
+       if (!columnNames.contains('comfyui_filename')) {
+           await db.execute('ALTER TABLE ${AppConstants.tableNameMessages} ADD COLUMN comfyui_filename TEXT');
        }
     }
   }

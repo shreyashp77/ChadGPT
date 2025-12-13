@@ -21,6 +21,9 @@ class SharedPrefsService {
   static const String keyGoogleApiKey = 'google_api_key';
   static const String keyGoogleCx = 'google_cx';
   static const String keyPerplexityApiKey = 'perplexity_api_key';
+  
+  // ComfyUI Keys
+  static const String keyComfyuiUrl = 'comfyui_url';
 
   Future<AppSettings> getSettings() async {
     final prefs = await SharedPreferences.getInstance();
@@ -71,6 +74,7 @@ class SharedPrefsService {
       googleApiKey: prefs.getString(keyGoogleApiKey),
       googleCx: prefs.getString(keyGoogleCx),
       perplexityApiKey: prefs.getString(keyPerplexityApiKey),
+      comfyuiUrl: prefs.getString(keyComfyuiUrl),
     );
   }
 
@@ -137,6 +141,13 @@ class SharedPrefsService {
       await prefs.setString(keyPerplexityApiKey, settings.perplexityApiKey!);
     } else {
       await prefs.remove(keyPerplexityApiKey);
+    }
+
+    // ComfyUI
+    if (settings.comfyuiUrl != null && settings.comfyuiUrl!.isNotEmpty) {
+      await prefs.setString(keyComfyuiUrl, settings.comfyuiUrl!);
+    } else {
+      await prefs.remove(keyComfyuiUrl);
     }
   }
 }

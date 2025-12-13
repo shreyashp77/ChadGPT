@@ -9,6 +9,7 @@ import 'package:provider/provider.dart';
 import '../providers/chat_provider.dart';
 import '../models/message.dart';
 import '../utils/theme.dart';
+import '../screens/image_preview_screen.dart';
 
 
 class MessageBubble extends StatefulWidget {
@@ -175,37 +176,143 @@ class _MessageBubbleState extends State<MessageBubble> {
 
                             // Attachments
                             if (message.attachmentPath != null) _buildAttachmentPreview(message.attachmentPath!),
-
-                            // Text Content
-                            MarkdownBody(
-                                data: message.content,
-                                styleSheet: MarkdownStyleSheet(
-                                    p: TextStyle(
-                                        color: isUser ? Colors.white : const Color(0xFFE0E0E0),
-                                        fontSize: 15,
-                                        height: 1.5,
-                                    ),
-                                    code: TextStyle(
-                                        color: isUser ? Colors.white70 : const Color(0xFFE0E0E0),
-                                        backgroundColor: Colors.black.withValues(alpha: 0.2),
-                                        fontFamily: 'monospace',
-                                        fontSize: 13,
-                                    ),
-                                    codeblockDecoration: BoxDecoration(
-                                        color: Colors.black.withValues(alpha: 0.3),
-                                        borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    blockquoteDecoration: BoxDecoration(
-                                        color: Colors.white.withValues(alpha: 0.05),
-                                        borderRadius: BorderRadius.circular(8),
-                                        border: Border(left: BorderSide(color: isUser ? Colors.white54 : AppTheme.accent, width: 3)),
+                            
+                            // Image Generation Progress
+                            if (message.isImageGenerating) ...[
+                                Container(
+                                    padding: const EdgeInsets.all(16),
+                                    child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                            Row(
+                                                children: [
+                                                    SizedBox(
+                                                        width: 20,
+                                                        height: 20,
+                                                        child: CircularProgressIndicator(
+                                                            strokeWidth: 2,
+                                                            valueColor: AlwaysStoppedAnimation<Color>(colorScheme.primary),
+                                                        ),
+                                                    ),
+                                                    const SizedBox(width: 12),
+                                                    Text(
+                                                        message.content,
+                                                        style: TextStyle(color: colorScheme.onSurface.withValues(alpha: 0.7)),
+                                                    ),
+                                                ],
+                                            ),
+                                            if (message.imageProgress > 0) ...[
+                                                const SizedBox(height: 12),
+                                                ClipRRect(
+                                                    borderRadius: BorderRadius.circular(8),
+                                                    child: LinearProgressIndicator(
+                                                        value: message.imageProgress,
+                                                        backgroundColor: Colors.white.withValues(alpha: 0.1),
+                                                        valueColor: AlwaysStoppedAnimation<Color>(colorScheme.primary),
+                                                        minHeight: 6,
+                                                    ),
+                                                ),
+                                            ],
+                                        ],
                                     ),
                                 ),
-                                selectable: true,
-                                builders: {
-                                    'code': CodeElementBuilder(context),
-                                },
-                            ),
+                            ] else if (message.generatedImageUrl != null) ...[
+                                // Display Generated Image
+                                GestureDetector(
+                                    onTap: () {
+                                        Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                                builder: (_) => ImagePreviewScreen(
+                                                    imageUrl: message.generatedImageUrl!,
+                                                    prompt: message.content,
+                                                ),
+                                            ),
+                                        );
+                                    },
+                                    child: Container(
+                                        constraints: const BoxConstraints(maxHeight: 300),
+                                        child: ClipRRect(
+                                            borderRadius: BorderRadius.circular(12),
+                                            child: Image.network(
+                                                message.generatedImageUrl!,
+                                                fit: BoxFit.contain,
+                                                loadingBuilder: (context, child, loadingProgress) {
+                                                    if (loadingProgress == null) return child;
+                                                    return Container(
+                                                        height: 200,
+                                                        alignment: Alignment.center,
+                                                        child: CircularProgressIndicator(
+                                                            value: loadingProgress.expectedTotalBytes != null
+                                                                ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
+                                                                : null,
+                                                            strokeWidth: 2,
+                                                        ),
+                                                    );
+                                                },
+                                                errorBuilder: (context, error, stackTrace) {
+                                                    return Container(
+                                                        height: 100,
+                                                        alignment: Alignment.center,
+                                                        decoration: BoxDecoration(
+                                                            color: Colors.red.withValues(alpha: 0.1),
+                                                            borderRadius: BorderRadius.circular(12),
+                                                        ),
+                                                        child: const Column(
+                                                            mainAxisAlignment: MainAxisAlignment.center,
+                                                            children: [
+                                                                Icon(Icons.broken_image, color: Colors.red),
+                                                                SizedBox(height: 8),
+                                                                Text('Failed to load image', style: TextStyle(color: Colors.red)),
+                                                            ],
+                                                        ),
+                                                    );
+                                                },
+                                            ),
+                                        ),
+                                    ),
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                    message.content,
+                                    style: TextStyle(
+                                        color: colorScheme.onSurface.withValues(alpha: 0.6),
+                                        fontSize: 12,
+                                        fontStyle: FontStyle.italic,
+                                    ),
+                                ),
+                            ] else ...[
+                                // Regular Text Content
+                                MarkdownBody(
+                                    data: message.content,
+                                    styleSheet: MarkdownStyleSheet(
+                                        p: TextStyle(
+                                            color: isUser ? Colors.white : const Color(0xFFE0E0E0),
+                                            fontSize: 15,
+                                            height: 1.5,
+                                        ),
+                                        code: TextStyle(
+                                            color: isUser ? Colors.white70 : const Color(0xFFE0E0E0),
+                                            backgroundColor: Colors.black.withValues(alpha: 0.2),
+                                            fontFamily: 'monospace',
+                                            fontSize: 13,
+                                        ),
+                                        codeblockDecoration: BoxDecoration(
+                                            color: Colors.black.withValues(alpha: 0.3),
+                                            borderRadius: BorderRadius.circular(8),
+                                        ),
+                                        blockquoteDecoration: BoxDecoration(
+                                            color: Colors.white.withValues(alpha: 0.05),
+                                            borderRadius: BorderRadius.circular(8),
+                                            border: Border(left: BorderSide(color: isUser ? Colors.white54 : AppTheme.accent, width: 3)),
+                                        ),
+                                    ),
+                                    selectable: true,
+                                    builders: {
+                                        'code': CodeElementBuilder(context),
+                                    },
+                                ),
+                            ],
                             
                             // Edited indicator
                             if (message.isEdited)

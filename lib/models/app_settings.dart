@@ -19,6 +19,9 @@ class AppSettings {
   String? googleApiKey;
   String? googleCx;
   String? perplexityApiKey;
+  
+  // ComfyUI Image Generation
+  String? comfyuiUrl;
 
   AppSettings({
     required this.lmStudioUrl,
@@ -36,6 +39,7 @@ class AppSettings {
     this.googleApiKey,
     this.googleCx,
     this.perplexityApiKey,
+    this.comfyuiUrl,
   });
 
   // Create a copyWith method
@@ -55,6 +59,7 @@ class AppSettings {
     String? googleApiKey,
     String? googleCx,
     String? perplexityApiKey,
+    String? comfyuiUrl,
   }) {
     return AppSettings(
       lmStudioUrl: lmStudioUrl ?? this.lmStudioUrl,
@@ -72,6 +77,7 @@ class AppSettings {
       googleApiKey: googleApiKey ?? this.googleApiKey,
       googleCx: googleCx ?? this.googleCx,
       perplexityApiKey: perplexityApiKey ?? this.perplexityApiKey,
+      comfyuiUrl: comfyuiUrl ?? this.comfyuiUrl,
     );
   }
 }

@@ -14,6 +14,7 @@ import '../widgets/app_drawer.dart';
 import '../widgets/create_persona_dialog.dart';
 import '../widgets/voice_mode_overlay.dart';
 import '../widgets/typing_indicator.dart';
+import '../widgets/media_history_sheet.dart';
 
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
@@ -133,6 +134,26 @@ class _ChatScreenState extends State<ChatScreen> {
           ),
         ),
         actions: [
+            // Media History Button (only show when images exist)
+            Consumer<ChatProvider>(
+                builder: (context, chat, _) {
+                    final hasImages = chat.generatedImages.isNotEmpty;
+                    if (!hasImages) return const SizedBox.shrink();
+                    return IconButton(
+                        icon: const Icon(Icons.photo_library, color: Colors.white70),
+                        tooltip: 'Media History',
+                        onPressed: () {
+                            HapticFeedback.lightImpact();
+                            showModalBottomSheet(
+                                context: context,
+                                backgroundColor: Colors.transparent,
+                                isScrollControlled: true,
+                                builder: (_) => const MediaHistorySheet(),
+                            );
+                        },
+                    );
+                },
+            ),
             // Persona Selector
             Consumer<ChatProvider>(
                 builder: (context, chat, _) => IconButton(

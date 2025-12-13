@@ -21,6 +21,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final _googleApiKeyController = TextEditingController();
   final _googleCxController = TextEditingController();
   final _perplexityController = TextEditingController();
+  final _comfyuiController = TextEditingController();
 
   @override
   void initState() {
@@ -34,6 +35,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _googleApiKeyController.text = settings.googleApiKey ?? '';
     _googleCxController.text = settings.googleCx ?? '';
     _perplexityController.text = settings.perplexityApiKey ?? '';
+    _comfyuiController.text = settings.comfyuiUrl ?? '';
   }
 
   @override
@@ -46,6 +48,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _googleApiKeyController.dispose();
     _googleCxController.dispose();
     _perplexityController.dispose();
+    _comfyuiController.dispose();
     super.dispose();
   }
 
@@ -84,6 +87,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 _buildSectionHeader('Appearance'),
                 const SizedBox(height: 8),
                 _buildAppearanceCard(context, settings, settingsProvider),
+                
+                const SizedBox(height: 24),
+                
+                _buildSectionHeader('Image Generation'),
+                const SizedBox(height: 8),
+                _buildImageGenerationCard(context, settingsProvider),
 
                 const SizedBox(height: 24),
                  _buildSectionHeader('About'),
@@ -516,6 +525,57 @@ class _SettingsScreenState extends State<SettingsScreen> {
                )
            ]
        ),
+    );
+  }
+
+   Widget _buildImageGenerationCard(BuildContext context, SettingsProvider settingsProvider) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
+    return _buildCard(
+      context: context,
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  Icons.auto_awesome,
+                  color: Theme.of(context).colorScheme.primary,
+                  size: 20,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'ComfyUI Integration',
+                  style: TextStyle(
+                    color: isDark ? Colors.white : Colors.black87,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Use /create <prompt> in chat to generate images',
+              style: TextStyle(
+                color: isDark ? Colors.white54 : Colors.black54,
+                fontSize: 12,
+              ),
+            ),
+            const SizedBox(height: 16),
+            _buildInputField(
+              context,
+              'ComfyUI Server URL',
+              _comfyuiController,
+              Icons.image,
+              (val) => settingsProvider.updateSettings(comfyuiUrl: val),
+              hintText: 'http://192.168.1.100:8188',
+            ),
+          ],
+        ),
+      ),
     );
   }
 

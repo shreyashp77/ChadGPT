@@ -4,8 +4,10 @@ import 'package:uuid/uuid.dart';
 import '../models/chat_session.dart';
 import '../models/message.dart';
 import 'dart:convert';
+import 'dart:async';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/database_service.dart';
+import '../services/comfyui_service.dart';
 import 'settings_provider.dart';
 import '../models/persona.dart';
 import '../services/tts_service.dart';
@@ -51,6 +53,19 @@ class ChatProvider with ChangeNotifier {
   // Generation timing for typing indicator
   DateTime? _generationStartTime;
   DateTime? get generationStartTime => _generationStartTime;
+  
+  // Image generation tracking
+  final Set<String> _activeImageGenerations = {};
+  bool get isGeneratingImage => _currentChat != null && _activeImageGenerations.contains(_currentChat!.id);
+  
+  // Generated images for current chat session (for media history)
+  List<String> get generatedImages {
+    if (_currentChat == null) return [];
+    return _currentChat!.messages
+        .where((m) => m.comfyuiFilename != null)
+        .map((m) => m.comfyuiFilename!)
+        .toList();
+  }
 
   ChatProvider(this._settingsProvider) {
     _loadChats();
@@ -366,6 +381,15 @@ class ChatProvider with ChangeNotifier {
   Future<void> sendMessage(String content, {String? attachmentPath, String? attachmentType, bool useWebSearch = false}) async {
     if (_currentChat == null) startNewChat();
     
+    // Check for /create command for image generation
+    if (content.trim().toLowerCase().startsWith('/create ')) {
+      final imagePrompt = content.substring(8).trim(); // Remove '/create ' prefix
+      if (imagePrompt.isNotEmpty) {
+        await _generateImage(imagePrompt);
+        return;
+      }
+    }
+    
     if (_settingsProvider.settings.selectedModelId == null) {
         throw Exception("No model selected. Please check your settings and connection.");
     }
@@ -421,6 +445,191 @@ class ChatProvider with ChangeNotifier {
     }
 
     await _generateAssistantResponse(content, useWebSearch: useWebSearch);
+  }
+  
+  /// Generate an image using ComfyUI
+  Future<void> _generateImage(String prompt) async {
+    if (_currentChat == null) startNewChat();
+    
+    final comfyuiUrl = _settingsProvider.settings.comfyuiUrl;
+    if (comfyuiUrl == null || comfyuiUrl.isEmpty) {
+      throw Exception('ComfyUI server URL not configured. Please set it in Settings.');
+    }
+    
+    final targetChat = _currentChat!;
+    final chatId = targetChat.id;
+    
+    // Add user message with the /create command
+    final userMsg = Message(
+      id: const Uuid().v4(),
+      chatId: chatId,
+      role: MessageRole.user,
+      content: '/create $prompt',
+      timestamp: DateTime.now(),
+    );
+    targetChat.messages.add(userMsg);
+    
+    // Save chat if first message
+    if (!_isTempMode && targetChat.messages.length == 1) {
+      targetChat.title = 'Image: ${prompt.length > 20 ? '${prompt.substring(0, 20)}...' : prompt}';
+      await _dbService.insertChat(targetChat);
+      await _loadChats();
+      
+      final newChatIndex = _chats.indexWhere((c) => c.id == chatId);
+      if (newChatIndex != -1) {
+        _currentChat = _chats[newChatIndex];
+        _currentChat!.messages = targetChat.messages;
+      }
+    }
+    if (!_isTempMode) {
+      await _dbService.insertMessage(userMsg, false);
+    }
+    
+    // Create assistant message with generating state
+    final assistantMsgId = const Uuid().v4();
+    var assistantMsg = Message(
+      id: assistantMsgId,
+      chatId: chatId,
+      role: MessageRole.assistant,
+      content: 'Generating image...',
+      timestamp: DateTime.now(),
+      isImageGenerating: true,
+      imageProgress: 0.0,
+    );
+    targetChat.messages.add(assistantMsg);
+    _activeImageGenerations.add(chatId);
+    notifyListeners();
+    
+    if (!_isTempMode) {
+      await _dbService.insertMessage(assistantMsg, false);
+    }
+    
+    try {
+      final comfyui = ComfyuiService(comfyuiUrl);
+      
+      // Queue the prompt
+      final promptId = await comfyui.queuePrompt(prompt);
+      
+      // Poll for progress
+      String status = 'pending';
+      Map<String, dynamic>? images;
+      
+      while (status != 'completed' && status != 'error' && !_abortGeneration) {
+        await Future.delayed(const Duration(milliseconds: 500));
+        
+        final progress = await comfyui.getProgress(promptId);
+        status = progress['status'] as String;
+        final progressValue = (progress['progress'] as num?)?.toDouble() ?? 0.0;
+        
+        // Update progress in message
+        final msgIndex = targetChat.messages.indexWhere((m) => m.id == assistantMsgId);
+        if (msgIndex != -1) {
+          targetChat.messages[msgIndex] = targetChat.messages[msgIndex].copyWith(
+            imageProgress: progressValue,
+            content: status == 'running' 
+                ? 'Generating... ${(progressValue * 100).toInt()}%' 
+                : 'Waiting in queue...',
+          );
+          notifyListeners();
+        }
+        
+        if (status == 'completed') {
+          images = progress;
+        }
+      }
+      
+      if (_abortGeneration) {
+        // User cancelled
+        final msgIndex = targetChat.messages.indexWhere((m) => m.id == assistantMsgId);
+        if (msgIndex != -1) {
+          targetChat.messages[msgIndex] = targetChat.messages[msgIndex].copyWith(
+            content: 'Generation cancelled',
+            isImageGenerating: false,
+          );
+          if (!_isTempMode) {
+            await _dbService.updateMessage(targetChat.messages[msgIndex]);
+          }
+        }
+        return;
+      }
+      
+      // Get image data
+      if (images != null && images['images'] != null) {
+        final imageList = images['images'] as List<dynamic>;
+        if (imageList.isNotEmpty) {
+          final imageData = imageList[0] as Map<String, dynamic>;
+          final filename = imageData['filename'] as String;
+          final subfolder = imageData['subfolder'] as String? ?? '';
+          final type = imageData['type'] as String? ?? 'output';
+          
+          final imageUrl = comfyui.getImageUrl(filename, subfolder, type);
+          
+          // Update message with image
+          final msgIndex = targetChat.messages.indexWhere((m) => m.id == assistantMsgId);
+          if (msgIndex != -1) {
+            targetChat.messages[msgIndex] = targetChat.messages[msgIndex].copyWith(
+              content: prompt,
+              isImageGenerating: false,
+              imageProgress: 1.0,
+              generatedImageUrl: imageUrl,
+              comfyuiFilename: filename,
+            );
+            
+            if (!_isTempMode) {
+              await _dbService.updateMessage(targetChat.messages[msgIndex]);
+            }
+          }
+        }
+      } else {
+        throw Exception('No image generated');
+      }
+      
+    } catch (e) {
+      // Update message with error
+      final msgIndex = targetChat.messages.indexWhere((m) => m.id == assistantMsgId);
+      if (msgIndex != -1) {
+        targetChat.messages[msgIndex] = targetChat.messages[msgIndex].copyWith(
+          content: 'Error: ${e.toString().replaceAll('Exception: ', '')}',
+          isImageGenerating: false,
+        );
+        if (!_isTempMode) {
+          await _dbService.updateMessage(targetChat.messages[msgIndex]);
+        }
+      }
+    } finally {
+      _activeImageGenerations.remove(chatId);
+      notifyListeners();
+    }
+  }
+  
+  /// Clear all generated images from ComfyUI output folder for this chat
+  Future<void> clearGeneratedImages() async {
+    if (_currentChat == null) return;
+    
+    final comfyuiUrl = _settingsProvider.settings.comfyuiUrl;
+    if (comfyuiUrl == null || comfyuiUrl.isEmpty) return;
+    
+    final filenames = generatedImages;
+    if (filenames.isEmpty) return;
+    
+    final comfyui = ComfyuiService(comfyuiUrl);
+    await comfyui.deleteImages(filenames);
+    
+    // Update messages to remove image references
+    for (var i = 0; i < _currentChat!.messages.length; i++) {
+      final msg = _currentChat!.messages[i];
+      if (msg.comfyuiFilename != null) {
+        _currentChat!.messages[i] = msg.copyWith(
+          generatedImageUrl: null,
+          comfyuiFilename: null,
+          content: 'Image deleted',
+        );
+        if (!_isTempMode) {
+          await _dbService.updateMessage(_currentChat!.messages[i]);
+        }
+      }
+    }
+    notifyListeners();
   }
 
   Future<void> regenerateLastResponse() async {

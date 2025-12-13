@@ -55,6 +55,7 @@ class SettingsProvider with ChangeNotifier {
     String? googleApiKey,
     String? googleCx,
     String? perplexityApiKey,
+    String? comfyuiUrl,
   }) async {
     _settings = _settings.copyWith(
       lmStudioUrl: lmStudioUrl,
@@ -72,6 +73,7 @@ class SettingsProvider with ChangeNotifier {
       googleApiKey: googleApiKey,
       googleCx: googleCx,
       perplexityApiKey: perplexityApiKey,
+      comfyuiUrl: comfyuiUrl,
     );
     
     // Update API service with new settings if URLs or provider changed
