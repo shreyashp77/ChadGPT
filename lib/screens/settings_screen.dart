@@ -5,6 +5,7 @@ import '../providers/settings_provider.dart';
 import '../models/app_settings.dart';
 import '../services/comfyui_service.dart';
 import '../utils/theme.dart';
+import 'package:http/http.dart' as http;
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -233,6 +234,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   Icons.computer, 
                   (val) => settingsProvider.updateSettings(lmStudioUrl: val),
                   labelTrailing: lmStatusDot
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () => _scanForLMStudio(context, settingsProvider),
+                  icon: const Icon(Icons.search, size: 18),
+                  label: const Text('Auto-detect LM Studio'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Theme.of(context).colorScheme.primary,
+                    side: BorderSide(color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.5)),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
               ),
             ] else ...[
               _buildInputField(
@@ -683,6 +699,162 @@ class _SettingsScreenState extends State<SettingsScreen> {
         },
       ),
     );
+  }
+
+  void _scanForLMStudio(BuildContext context, SettingsProvider settingsProvider) {
+    String statusText = 'Starting scan...';
+    List<String> foundServers = [];
+    bool isScanning = true;
+    
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          // Start scan on first build
+          if (isScanning && foundServers.isEmpty && statusText == 'Starting scan...') {
+            _scanNetworkForLMStudio(
+              onProgress: (status) {
+                if (context.mounted) {
+                  setDialogState(() => statusText = status);
+                }
+              },
+              onServerFound: (url) {
+                if (context.mounted) {
+                  setDialogState(() => foundServers.add(url));
+                }
+              },
+            ).then((_) {
+              if (context.mounted) {
+                setDialogState(() {
+                  isScanning = false;
+                  statusText = foundServers.isEmpty ? 'No LM Studio servers found' : 'Found ${foundServers.length} server(s)';
+                });
+              }
+            });
+          }
+          
+          return AlertDialog(
+            backgroundColor: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF2C2C2C) : Colors.white,
+            title: Row(
+              children: [
+                Icon(Icons.search, color: Theme.of(context).colorScheme.primary),
+                const SizedBox(width: 8),
+                const Text('Scanning Network'),
+              ],
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (isScanning)
+                  const LinearProgressIndicator(),
+                const SizedBox(height: 12),
+                Text(statusText, style: TextStyle(color: Theme.of(context).brightness == Brightness.dark ? Colors.white70 : Colors.black54)),
+                if (foundServers.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  const Text('Found servers:', style: TextStyle(fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 8),
+                  ...foundServers.map((url) => InkWell(
+                    onTap: () {
+                      _lmStudioController.text = url;
+                      settingsProvider.updateSettings(lmStudioUrl: url);
+                      Navigator.pop(ctx);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('LM Studio server set to $url'), backgroundColor: Colors.green),
+                      );
+                    },
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      child: Row(
+                        children: [
+                          Icon(Icons.computer, color: Theme.of(context).colorScheme.primary, size: 20),
+                          const SizedBox(width: 8),
+                          Expanded(child: Text(url, style: const TextStyle(fontWeight: FontWeight.w500))),
+                          Icon(Icons.arrow_forward_ios, size: 14, color: Theme.of(context).colorScheme.primary),
+                        ],
+                      ),
+                    ),
+                  )),
+                ],
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: Text(isScanning ? 'Cancel' : 'Close'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Future<List<String>> _scanNetworkForLMStudio({
+    void Function(String status)? onProgress,
+    void Function(String url)? onServerFound,
+  }) async {
+    final foundServers = <String>[];
+    const port = 1234; // LM Studio default port
+    const timeout = Duration(milliseconds: 800);
+    
+    final patterns = [
+      '192.168.1.',
+      '192.168.0.',
+      '10.0.0.',
+      '172.16.0.',
+    ];
+    
+    final localUrls = [
+      'http://localhost:$port',
+      'http://127.0.0.1:$port',
+    ];
+    
+    onProgress?.call('Checking localhost...');
+    for (var url in localUrls) {
+      try {
+        final response = await http.get(
+          Uri.parse('$url/v1/models'),
+        ).timeout(timeout);
+        if (response.statusCode == 200) {
+          foundServers.add(url);
+          onServerFound?.call(url);
+        }
+      } catch (_) {}
+    }
+    
+    for (var pattern in patterns) {
+      onProgress?.call('Scanning $pattern*...');
+      
+      final futures = <Future<void>>[];
+      
+      for (var i = 1; i <= 254; i++) {
+        final ip = '$pattern$i';
+        final url = 'http://$ip:$port';
+        
+        futures.add((() async {
+          try {
+            final response = await http.get(
+              Uri.parse('$url/v1/models'),
+            ).timeout(timeout);
+            if (response.statusCode == 200) {
+              foundServers.add(url);
+              onServerFound?.call(url);
+            }
+          } catch (_) {}
+        })());
+      }
+      
+      final batchSize = 50;
+      for (var i = 0; i < futures.length; i += batchSize) {
+        final batch = futures.skip(i).take(batchSize).toList();
+        await Future.wait(batch);
+      }
+    }
+    
+    onProgress?.call('Scan complete');
+    return foundServers;
   }
 
    Widget _buildAboutCard(BuildContext context) {
