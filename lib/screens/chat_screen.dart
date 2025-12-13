@@ -32,6 +32,7 @@ class _ChatScreenState extends State<ChatScreen> {
   String? _pendingAttachmentPath;
   String? _pendingAttachmentType; // 'image' or 'file'
   bool _showScrollDownButton = false; // State to toggle visibility of scroll button
+  bool _hasScrolledForGeneration = false; // Prevents continuous scrolling during generation
 
   bool _useWebSearch = false; // Local state for search
 
@@ -95,9 +96,16 @@ class _ChatScreenState extends State<ChatScreen> {
     final chatProvider = context.watch<ChatProvider>();
     final currentChat = chatProvider.currentChat;
 
-    // Auto-scroll to bottom if generating AND user is at bottom (Sticky Scroll)
-    if (chatProvider.isTyping && !_showScrollDownButton) {
-       _scrollToBottom(isImmediate: true);
+    // Auto-scroll to bottom once when generation starts (sticky scroll)
+    // Only scroll if user hasn't manually scrolled up
+    if (chatProvider.isTyping) {
+      if (!_hasScrolledForGeneration && !_showScrollDownButton) {
+        _scrollToBottom(isImmediate: true);
+        _hasScrolledForGeneration = true;
+      }
+    } else {
+      // Reset the flag when generation completes
+      _hasScrolledForGeneration = false;
     }
 
     return Scaffold(

@@ -451,6 +451,8 @@ class ChatProvider with ChangeNotifier {
   Future<void> _generateImage(String prompt) async {
     if (_currentChat == null) startNewChat();
     
+    _abortGeneration = false; // Reset abort flag for new generation
+    
     final comfyuiUrl = _settingsProvider.settings.comfyuiUrl;
     if (comfyuiUrl == null || comfyuiUrl.isEmpty) {
       throw Exception('ComfyUI server URL not configured. Please set it in Settings.');
@@ -681,18 +683,104 @@ class ChatProvider with ChangeNotifier {
     
     if (imagePrompt == null) return;
     
+    _abortGeneration = false; // Reset abort flag for regeneration
+    
+    final comfyuiUrl = _settingsProvider.settings.comfyuiUrl;
+    if (comfyuiUrl == null || comfyuiUrl.isEmpty) return;
+    
+    final targetChat = _currentChat!;
+    final chatId = targetChat.id;
+    
     try {
       // Remove the last image response
       _currentChat!.messages.removeLast();
       if (!_isTempMode) {
         await _dbService.deleteMessage(lastMsg.id);
       }
+      
+      // Create new assistant message with generating state (no new user message)
+      final assistantMsgId = const Uuid().v4();
+      var assistantMsg = Message(
+        id: assistantMsgId,
+        chatId: chatId,
+        role: MessageRole.assistant,
+        content: 'Regenerating image...',
+        timestamp: DateTime.now(),
+        isImageGenerating: true,
+        imageProgress: 0.0,
+      );
+      targetChat.messages.add(assistantMsg);
+      _activeImageGenerations.add(chatId);
       notifyListeners();
       
-      // Generate a new image with the same prompt
-      await _generateImage(imagePrompt);
+      if (!_isTempMode) {
+        await _dbService.insertMessage(assistantMsg, false);
+      }
+      
+      // Queue prompt and poll for completion
+      final comfyui = ComfyuiService(comfyuiUrl);
+      final promptId = await comfyui.queuePrompt(imagePrompt);
+      
+      String status = 'pending';
+      Map<String, dynamic>? images;
+      
+      while (status != 'completed' && status != 'error' && !_abortGeneration) {
+        await Future.delayed(const Duration(milliseconds: 500));
+        final progress = await comfyui.getProgress(promptId);
+        status = progress['status'] as String;
+        
+        if (status == 'completed') {
+          images = progress;
+        }
+      }
+      
+      if (_abortGeneration) {
+        final msgIndex = targetChat.messages.indexWhere((m) => m.id == assistantMsgId);
+        if (msgIndex != -1) {
+          targetChat.messages[msgIndex] = targetChat.messages[msgIndex].copyWith(
+            content: 'Regeneration cancelled',
+            isImageGenerating: false,
+          );
+          if (!_isTempMode) {
+            await _dbService.updateMessage(targetChat.messages[msgIndex]);
+          }
+        }
+        return;
+      }
+      
+      // Get image data
+      if (images != null && images['images'] != null) {
+        final imageList = images['images'] as List<dynamic>;
+        if (imageList.isNotEmpty) {
+          final imageData = imageList[0] as Map<String, dynamic>;
+          final filename = imageData['filename'] as String;
+          final subfolder = imageData['subfolder'] as String? ?? '';
+          final type = imageData['type'] as String? ?? 'output';
+          
+          final imageUrl = comfyui.getImageUrl(filename, subfolder, type);
+          
+          final msgIndex = targetChat.messages.indexWhere((m) => m.id == assistantMsgId);
+          if (msgIndex != -1) {
+            targetChat.messages[msgIndex] = targetChat.messages[msgIndex].copyWith(
+              content: imagePrompt,
+              isImageGenerating: false,
+              imageProgress: 1.0,
+              generatedImageUrl: imageUrl,
+              comfyuiFilename: filename,
+            );
+            
+            if (!_isTempMode) {
+              await _dbService.updateMessage(targetChat.messages[msgIndex]);
+            }
+          }
+        }
+      }
+      
     } catch (e) {
       print("Error regenerating image: $e");
+    } finally {
+      _activeImageGenerations.remove(chatId);
+      notifyListeners();
     }
   }
 
