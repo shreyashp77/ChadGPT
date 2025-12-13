@@ -11,6 +11,9 @@ class ChatSession {
   bool isPinned;
   bool hasUnreadMessages;
 
+  /// Returns true if the chat contains any generated media (images)
+  bool get hasGeneratedMedia => messages.any((m) => m.generatedImageUrl != null);
+
   ChatSession({
     required this.id,
     required this.title,

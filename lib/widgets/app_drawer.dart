@@ -122,7 +122,7 @@ class _AppDrawerState extends State<AppDrawer> {
                                                             ? Icon(Icons.chevron_right, color: isDark ? Colors.white54 : Colors.black45, size: 16) 
                                                             : (chat.hasUnreadMessages 
                                                                 ? Container(
-                                                                    width: 16, // Match the size of the chevron icon (16)
+                                                                    width: 16,
                                                                     height: 16,
                                                                     alignment: Alignment.center,
                                                                     child: Container(
@@ -141,7 +141,9 @@ class _AppDrawerState extends State<AppDrawer> {
                                                                         ),
                                                                     ),
                                                                 )
-                                                                : null),
+                                                                : (chat.hasGeneratedMedia 
+                                                                    ? Icon(Icons.brush, color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.7), size: 14)
+                                                                    : null)),
                                                     ),
                                                 ),
                                             );
