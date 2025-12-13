@@ -136,11 +136,15 @@ class ComfyuiService {
     }
   }
 
+  /// Total nodes in the workflow for progress tracking
+  static const int _totalNodes = 8; // Nodes: 3,6,7,8,9,13,16,17,18 minus 1 for meta
+  static const List<String> _nodeOrder = ['16', '17', '18', '13', '6', '7', '3', '8', '9'];
+  
   /// Get the progress of a prompt
   /// Returns a map with 'status' ('pending', 'running', 'completed', 'error') and 'progress' (0.0-1.0)
   Future<Map<String, dynamic>> getProgress(String promptId) async {
     try {
-      // Check queue status
+      // Check queue status first
       final queueResponse = await http.get(Uri.parse('$baseUrl/queue'));
       
       if (queueResponse.statusCode == 200) {
@@ -155,21 +159,52 @@ class ComfyuiService {
           }
         }
         
-        // Check if running
+        // Check if running - get current executing node from queue
         for (var item in runningQueue) {
           if (item[1] == promptId) {
-            // Get more detailed progress
-            final progressResponse = await http.get(Uri.parse('$baseUrl/progress'));
-            if (progressResponse.statusCode == 200) {
-              final progressData = jsonDecode(progressResponse.body);
-              final value = progressData['value'] ?? 0;
-              final max = progressData['max'] ?? 1;
-              return {
-                'status': 'running',
-                'progress': max > 0 ? value / max : 0.0,
-              };
+            // Check history for which nodes have been executed
+            final historyResponse = await http.get(Uri.parse('$baseUrl/history/$promptId'));
+            if (historyResponse.statusCode == 200) {
+              final historyData = jsonDecode(historyResponse.body);
+              if (historyData.containsKey(promptId)) {
+                final promptHistory = historyData[promptId];
+                final statusObj = promptHistory['status'];
+                
+                if (statusObj != null && statusObj['messages'] != null) {
+                  final messages = statusObj['messages'] as List<dynamic>;
+                  // Count execution_cached and executing messages
+                  int completedNodes = 0;
+                  for (var msg in messages) {
+                    if (msg is List && msg.isNotEmpty) {
+                      final msgType = msg[0] as String?;
+                      if (msgType == 'execution_cached' && msg.length > 1) {
+                        final cachedNodes = msg[1]['nodes'] as List<dynamic>?;
+                        if (cachedNodes != null) {
+                          completedNodes += cachedNodes.length;
+                        }
+                      } else if (msgType == 'executing' && msg.length > 1) {
+                        final nodeId = msg[1]['node'];
+                        if (nodeId != null) {
+                          // Find position of this node in our order
+                          final idx = _nodeOrder.indexOf(nodeId.toString());
+                          if (idx >= 0) {
+                            completedNodes = idx + 1;
+                          }
+                        }
+                      }
+                    }
+                  }
+                  
+                  final progress = completedNodes / _nodeOrder.length;
+                  return {
+                    'status': 'running',
+                    'progress': progress.clamp(0.0, 0.95), // Cap at 95% until complete
+                  };
+                }
+              }
             }
-            return {'status': 'running', 'progress': 0.5};
+            // Fallback - just say we're running with some progress
+            return {'status': 'running', 'progress': 0.1};
           }
         }
         
@@ -191,6 +226,16 @@ class ComfyuiService {
                   'images': images,
                 };
               }
+            }
+            
+            // Check if there's an error in status
+            final statusObj = promptHistory['status'];
+            if (statusObj != null && statusObj['status_str'] == 'error') {
+              return {
+                'status': 'error',
+                'progress': 0.0,
+                'error': 'Workflow execution failed',
+              };
             }
           }
         }

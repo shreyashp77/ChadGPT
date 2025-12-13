@@ -177,42 +177,90 @@ class _MessageBubbleState extends State<MessageBubble> {
                             // Attachments
                             if (message.attachmentPath != null) _buildAttachmentPreview(message.attachmentPath!),
                             
-                            // Image Generation Progress
+                            // Image Generation - Beautiful shimmer indicator
                             if (message.isImageGenerating) ...[
                                 Container(
-                                    padding: const EdgeInsets.all(16),
+                                    padding: const EdgeInsets.all(20),
                                     child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        crossAxisAlignment: CrossAxisAlignment.center,
                                         children: [
-                                            Row(
-                                                children: [
-                                                    SizedBox(
-                                                        width: 20,
-                                                        height: 20,
-                                                        child: CircularProgressIndicator(
-                                                            strokeWidth: 2,
-                                                            valueColor: AlwaysStoppedAnimation<Color>(colorScheme.primary),
+                                            // Animated icon with glow
+                                            Container(
+                                                width: 60,
+                                                height: 60,
+                                                decoration: BoxDecoration(
+                                                    shape: BoxShape.circle,
+                                                    gradient: LinearGradient(
+                                                        colors: [
+                                                            colorScheme.primary.withValues(alpha: 0.3),
+                                                            colorScheme.primary.withValues(alpha: 0.1),
+                                                        ],
+                                                    ),
+                                                    boxShadow: [
+                                                        BoxShadow(
+                                                            color: colorScheme.primary.withValues(alpha: 0.3),
+                                                            blurRadius: 20,
+                                                            spreadRadius: 2,
                                                         ),
-                                                    ),
-                                                    const SizedBox(width: 12),
-                                                    Text(
-                                                        message.content,
-                                                        style: TextStyle(color: colorScheme.onSurface.withValues(alpha: 0.7)),
-                                                    ),
-                                                ],
-                                            ),
-                                            if (message.imageProgress > 0) ...[
-                                                const SizedBox(height: 12),
-                                                ClipRRect(
-                                                    borderRadius: BorderRadius.circular(8),
-                                                    child: LinearProgressIndicator(
-                                                        value: message.imageProgress,
-                                                        backgroundColor: Colors.white.withValues(alpha: 0.1),
-                                                        valueColor: AlwaysStoppedAnimation<Color>(colorScheme.primary),
-                                                        minHeight: 6,
-                                                    ),
+                                                    ],
                                                 ),
-                                            ],
+                                                child: Icon(
+                                                    Icons.auto_awesome,
+                                                    color: colorScheme.primary,
+                                                    size: 28,
+                                                ),
+                                            ).animate(
+                                                onPlay: (controller) => controller.repeat(reverse: true),
+                                            ).scale(
+                                                begin: const Offset(1.0, 1.0),
+                                                end: const Offset(1.1, 1.1),
+                                                duration: 1500.ms,
+                                                curve: Curves.easeInOut,
+                                            ),
+                                            const SizedBox(height: 16),
+                                            // Text with shimmer
+                                            Text(
+                                                'Creating your image...',
+                                                style: TextStyle(
+                                                    color: colorScheme.onSurface.withValues(alpha: 0.8),
+                                                    fontSize: 14,
+                                                    fontWeight: FontWeight.w500,
+                                                    letterSpacing: 0.5,
+                                                ),
+                                            ).animate(
+                                                onPlay: (controller) => controller.repeat(),
+                                            ).shimmer(
+                                                duration: 2500.ms,
+                                                color: colorScheme.primary.withValues(alpha: 0.5),
+                                            ),
+                                            const SizedBox(height: 8),
+                                            // Subtle dots animation
+                                            Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: List.generate(3, (index) {
+                                                    return Container(
+                                                        margin: const EdgeInsets.symmetric(horizontal: 3),
+                                                        width: 6,
+                                                        height: 6,
+                                                        decoration: BoxDecoration(
+                                                            shape: BoxShape.circle,
+                                                            color: colorScheme.primary,
+                                                        ),
+                                                    ).animate(
+                                                        onPlay: (controller) => controller.repeat(reverse: true),
+                                                    ).fade(
+                                                        begin: 0.3,
+                                                        end: 1.0,
+                                                        delay: (index * 200).ms,
+                                                        duration: 600.ms,
+                                                    ).scale(
+                                                        begin: const Offset(0.8, 0.8),
+                                                        end: const Offset(1.2, 1.2),
+                                                        delay: (index * 200).ms,
+                                                        duration: 600.ms,
+                                                    );
+                                                }),
+                                            ),
                                         ],
                                     ),
                                 ),
