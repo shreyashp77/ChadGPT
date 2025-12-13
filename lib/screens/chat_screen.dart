@@ -627,6 +627,7 @@ class _ChatScreenState extends State<ChatScreen> {
                                        const SizedBox(height: 10),
 
                                        // Create Image
+                                       if (settingsProvider.isComfyUiConnected)
                                        _buildFloatingOption(
                                            context,
                                            icon: Icons.brush,

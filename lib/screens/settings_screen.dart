@@ -306,6 +306,32 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ],
             
             const SizedBox(height: 24),
+            _buildInputField(
+              context,
+              'ComfyUI Server URL',
+              _comfyuiController,
+              Icons.image,
+              (val) => settingsProvider.updateSettings(comfyuiUrl: val),
+              hintText: 'http://192.168.1.100:8188',
+              labelTrailing: comfyUiStatusDot,
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () => _scanForComfyUI(context, settingsProvider),
+                icon: const Icon(Icons.search, size: 18),
+                label: const Text('Auto-detect ComfyUI'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Theme.of(context).colorScheme.primary,
+                  side: BorderSide(color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.5)),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+            ),
+            
+            const SizedBox(height: 24),
             Text(
               'Search Provider',
               style: TextStyle(
@@ -406,52 +432,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                    ),
                 ],
             ],
-            
-            /// ComfyUI Integration moved here
-            const SizedBox(height: 24),
-            Row(
-              children: [
-                Icon(
-                  Icons.auto_awesome,
-                  color: Theme.of(context).colorScheme.primary,
-                  size: 20,
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  'ComfyUI Integration',
-                  style: TextStyle(
-                    color: isDark ? Colors.white : Colors.black87,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 15,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            _buildInputField(
-              context,
-              'ComfyUI Server URL',
-              _comfyuiController,
-              Icons.image,
-              (val) => settingsProvider.updateSettings(comfyuiUrl: val),
-              hintText: 'http://192.168.1.100:8188',
-              labelTrailing: comfyUiStatusDot,
-            ),
-            const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: () => _scanForComfyUI(context, settingsProvider),
-                icon: const Icon(Icons.search, size: 18),
-                label: const Text('Auto-detect ComfyUI'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: Theme.of(context).colorScheme.primary,
-                  side: BorderSide(color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.5)),
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-              ),
-            ),
           ],
         ),
       ),
