@@ -236,7 +236,9 @@ class _MessageBubbleState extends State<MessageBubble> {
                                             borderRadius: BorderRadius.circular(12),
                                             child: Image.network(
                                                 message.generatedImageUrl!,
+                                                key: ValueKey('img_${message.id}_${message.comfyuiFilename}'),
                                                 fit: BoxFit.contain,
+                                                cacheWidth: 1024, // Limit cache size
                                                 loadingBuilder: (context, child, loadingProgress) {
                                                     if (loadingProgress == null) return child;
                                                     return Container(

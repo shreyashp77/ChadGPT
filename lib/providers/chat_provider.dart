@@ -610,6 +610,10 @@ class ChatProvider with ChangeNotifier {
     final filenames = generatedImages;
     if (filenames.isEmpty) return;
     
+    // Clear Flutter's image cache to prevent old images from showing
+    PaintingBinding.instance.imageCache.clear();
+    PaintingBinding.instance.imageCache.clearLiveImages();
+    
     // Update messages to remove image references
     for (var i = 0; i < _currentChat!.messages.length; i++) {
       final msg = _currentChat!.messages[i];
