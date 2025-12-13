@@ -8,6 +8,8 @@ import 'package:gal/gal.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:path_provider/path_provider.dart';
 
+import 'package:pasteboard/pasteboard.dart';
+
 /// Full-screen image preview with zoom, save, and share options
 class ImagePreviewScreen extends StatefulWidget {
   final String imageUrl;
@@ -129,13 +131,14 @@ class _ImagePreviewScreenState extends State<ImagePreviewScreen> {
   }
   
   Future<void> _copyToClipboard() async {
+    if (_imageBytes == null) return;
     try {
-      await Clipboard.setData(ClipboardData(text: widget.imageUrl));
+      await Pasteboard.writeImage(_imageBytes!);
       
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Image URL copied to clipboard'),
+            content: Text('Image copied to clipboard'),
             behavior: SnackBarBehavior.floating,
           ),
         );
@@ -196,7 +199,7 @@ class _ImagePreviewScreenState extends State<ImagePreviewScreen> {
         actions: [
           _buildActionButton(Icons.save_alt, _saveToGallery, 'Save to Gallery', isLoading: _isSaving),
           _buildActionButton(Icons.share, _shareImage, 'Share'),
-          _buildActionButton(Icons.copy, _copyToClipboard, 'Copy URL'),
+          _buildActionButton(Icons.copy, _copyToClipboard, 'Copy Image'),
           const SizedBox(width: 8),
         ],
       ),

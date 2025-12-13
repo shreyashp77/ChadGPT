@@ -57,6 +57,7 @@ dependencies:
   share_plus: ^10.1.4
   gal: ^2.3.0
   path_provider: ^2.1.5
+  pasteboard: ^0.4.0
 
 dev_dependencies:
   flutter_test:
