@@ -390,10 +390,7 @@ class ChatProvider with ChangeNotifier {
       }
     }
     
-    if (_settingsProvider.settings.selectedModelId == null) {
-        throw Exception("No model selected. Please check your settings and connection.");
-    }
-
+    // 1. Add User Message IMMEDIATELY (Optimistic UI)
     _abortGeneration = false;
     
     final userMsg = Message(
@@ -409,42 +406,60 @@ class ChatProvider with ChangeNotifier {
     _currentChat!.messages.add(userMsg);
     notifyListeners();
 
+    // 2. Persist User Message
     if (!_isTempMode) {
       if (_currentChat!.messages.length == 1) {
-         final userContent = content;
-         final modelId = _settingsProvider.settings.selectedModelId!;
-         final chatId = _currentChat!.id;
-         
-         _settingsProvider.apiService.generateTitle(userContent, modelId).then((title) {
-             _dbService.renameChat(chatId, title);
-
-             final chatInListIndex = _chats.indexWhere((c) => c.id == chatId);
-             if (chatInListIndex != -1) {
-                 _chats[chatInListIndex].title = title;
-             }
-
-             if (_currentChat != null && _currentChat!.id == chatId) {
-                 _currentChat!.title = title;
-             }
-             
-             notifyListeners();
-         });
-
          _currentChat!.title = content.length > 30 ? '${content.substring(0, 30)}...' : content;
          await _dbService.insertChat(_currentChat!);
+         
+         // Reload to get properly synced object from DB, but keep our optimistically added message
+         final oldMessages = _currentChat!.messages;
          await _loadChats();
 
-         final newChatIndex = _chats.indexWhere((c) => c.id == chatId);
+         final newChatIndex = _chats.indexWhere((c) => c.id == _currentChat!.id);
          if (newChatIndex != -1) {
-             final messages = _currentChat!.messages;
              _currentChat = _chats[newChatIndex];
-             _currentChat!.messages = messages;
+             _currentChat!.messages = oldMessages; // Restore messages including the new one
+         }
+
+          // Generate Title in background if model is selected
+         if (_settingsProvider.settings.selectedModelId != null) {
+            final modelId = _settingsProvider.settings.selectedModelId!;
+            final chatId = _currentChat!.id;
+             _settingsProvider.apiService.generateTitle(content, modelId).then((title) {
+                 _dbService.renameChat(chatId, title);
+                 final chatInListIndex = _chats.indexWhere((c) => c.id == chatId);
+                 if (chatInListIndex != -1) {
+                     _chats[chatInListIndex].title = title;
+                 }
+                 if (_currentChat != null && _currentChat!.id == chatId) {
+                     _currentChat!.title = title;
+                 }
+                 notifyListeners();
+             });
          }
       }
       await _dbService.insertMessage(userMsg, false);
     }
 
-    await _generateAssistantResponse(content, useWebSearch: useWebSearch);
+    // 3. Validation
+    if (_settingsProvider.settings.selectedModelId == null) {
+         // Add error system message instead of throwing
+         final errorMsg = Message(
+            id: const Uuid().v4(),
+            chatId: _currentChat!.id,
+            role: MessageRole.system,
+            content: "Error: No model selected. Please check your settings and connection.",
+            timestamp: DateTime.now(),
+         );
+         _currentChat!.messages.add(errorMsg);
+         notifyListeners();
+         if (!_isTempMode) await _dbService.insertMessage(errorMsg, false);
+         return;
+    }
+
+    // 4. Trigger Response (NON-BLOCKING)
+    _generateAssistantResponse(content, useWebSearch: useWebSearch);
   }
   
   /// Generate an image using ComfyUI

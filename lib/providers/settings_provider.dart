@@ -100,6 +100,11 @@ class SettingsProvider with ChangeNotifier {
       checkComfyUiConnection();
     }
 
+    // If LM Studio URL changed, refetch models
+    if (lmStudioUrl != null && _settings.apiProvider == ApiProvider.lmStudio) {
+      fetchModels();
+    }
+
     // If switching provider, clear current model selection and refetch
     if (apiProvider != null) {
       _settings = _settings.copyWith(selectedModelId: null);
