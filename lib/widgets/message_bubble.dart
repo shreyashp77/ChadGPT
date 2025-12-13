@@ -340,12 +340,15 @@ class _MessageBubbleState extends State<MessageBubble> {
                         child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                                _buildActionButton(
-                                    context, 
-                                    icon: Icons.volume_up_outlined, 
-                                    onTap: () => chatProvider.speakMessage(message.content)
-                                ),
-                                const SizedBox(width: 12),
+                                // Hide speaker for image responses
+                                if (message.generatedImageUrl == null && !message.isImageGenerating) ...[
+                                    _buildActionButton(
+                                        context, 
+                                        icon: Icons.volume_up_outlined, 
+                                        onTap: () => chatProvider.speakMessage(message.content)
+                                    ),
+                                    const SizedBox(width: 12),
+                                ],
                                 _buildActionButton(
                                     context, 
                                     icon: Icons.copy_outlined, 
@@ -375,8 +378,8 @@ class _MessageBubbleState extends State<MessageBubble> {
                                         }
                                     ),
                                 ],
-                                // Token count badge
-                                if (message.totalTokens > 0) ...[
+                                // Token count badge (hide for image responses)
+                                if (message.totalTokens > 0 && message.generatedImageUrl == null) ...[
                                     const SizedBox(width: 12),
                                     _buildTokenBadge(context, message),
                                 ],
@@ -384,22 +387,25 @@ class _MessageBubbleState extends State<MessageBubble> {
                         ),
                     ),
                 
-                // Action Buttons for User messages
+                // Action Buttons for User messages (hide edit for /create messages)
                 if (isUser && !chatProvider.isTyping)
                     Padding(
                         padding: const EdgeInsets.only(top: 6, right: 4),
                         child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                                _buildActionButton(
-                                    context,
-                                    icon: Icons.edit_outlined,
-                                    onTap: () {
-                                        HapticFeedback.lightImpact();
-                                        _showEditDialog(context, chatProvider);
-                                    },
-                                ),
-                                const SizedBox(width: 12),
+                                // Hide edit button for /create commands
+                                if (!message.content.toLowerCase().startsWith('/create ')) ...[
+                                    _buildActionButton(
+                                        context,
+                                        icon: Icons.edit_outlined,
+                                        onTap: () {
+                                            HapticFeedback.lightImpact();
+                                            _showEditDialog(context, chatProvider);
+                                        },
+                                    ),
+                                    const SizedBox(width: 12),
+                                ],
                                 _buildActionButton(
                                     context, 
                                     icon: Icons.copy_outlined, 

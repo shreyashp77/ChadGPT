@@ -637,6 +637,12 @@ class ChatProvider with ChangeNotifier {
       final lastMsg = _currentChat!.messages.last;
       if (lastMsg.role != MessageRole.assistant) return;
       
+      // Check if this is an image response - delegate to regenerateLastImage
+      if (lastMsg.generatedImageUrl != null || lastMsg.comfyuiFilename != null) {
+        await regenerateLastImage();
+        return;
+      }
+      
       try {
           _currentChat!.messages.removeLast();
           if (!_isTempMode) {
@@ -653,6 +659,41 @@ class ChatProvider with ChangeNotifier {
       } catch (e) {
           print("Error regenerating: $e");
       }
+  }
+  
+  /// Regenerate the last image with the same prompt
+  Future<void> regenerateLastImage() async {
+    if (_currentChat == null || _currentChat!.messages.isEmpty) return;
+    
+    // Find the last image response
+    final lastMsg = _currentChat!.messages.last;
+    if (lastMsg.role != MessageRole.assistant) return;
+    
+    // Find the user message before this response to get the prompt
+    String? imagePrompt;
+    for (int i = _currentChat!.messages.length - 2; i >= 0; i--) {
+      final msg = _currentChat!.messages[i];
+      if (msg.role == MessageRole.user && msg.content.toLowerCase().startsWith('/create ')) {
+        imagePrompt = msg.content.substring(8).trim();
+        break;
+      }
+    }
+    
+    if (imagePrompt == null) return;
+    
+    try {
+      // Remove the last image response
+      _currentChat!.messages.removeLast();
+      if (!_isTempMode) {
+        await _dbService.deleteMessage(lastMsg.id);
+      }
+      notifyListeners();
+      
+      // Generate a new image with the same prompt
+      await _generateImage(imagePrompt);
+    } catch (e) {
+      print("Error regenerating image: $e");
+    }
   }
 
   Future<void> editMessage(String messageId, String newContent) async {
