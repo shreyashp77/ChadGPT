@@ -33,7 +33,7 @@ class ChatProvider with ChangeNotifier {
   
   List<ChatSession> get chats => _chats;
   ChatSession? get currentChat => _currentChat;
-  bool get isTyping => _currentChat != null && _activeGenerations.contains(_currentChat!.id);
+  bool get isTyping => _currentChat != null && (_activeGenerations.contains(_currentChat!.id) || _activeImageGenerations.contains(_currentChat!.id));
   final Set<String> _activeGenerations = {};
   bool get isTempMode => _isTempMode;
   Persona get currentPersona => _currentPersona ?? Persona.presets.first;
