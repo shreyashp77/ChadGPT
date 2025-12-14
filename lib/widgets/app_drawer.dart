@@ -2,10 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:path_provider/path_provider.dart';
+import 'dart:io';
 import '../providers/chat_provider.dart';
 import '../utils/theme.dart';
 import '../screens/settings_screen.dart';
 import '../screens/analytics_screen.dart';
+import '../models/chat_session.dart';
 
 class AppDrawer extends StatefulWidget {
   const AppDrawer({super.key});
@@ -141,9 +145,20 @@ class _AppDrawerState extends State<AppDrawer> {
                                                                         ),
                                                                     ),
                                                                 )
-                                                                : (chat.hasGeneratedMedia 
-                                                                    ? Icon(Icons.brush, color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.7), size: 14)
-                                                                    : null)),
+                                                                : Row(
+                                                                    mainAxisSize: MainAxisSize.min,
+                                                                    children: [
+                                                                      // Attachment indicator (📎)
+                                                                      if (chat.hasAttachments)
+                                                                        Padding(
+                                                                          padding: const EdgeInsets.only(right: 6),
+                                                                          child: Icon(Icons.attach_file, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5), size: 14),
+                                                                        ),
+                                                                      // Generated media indicator (🖼️)
+                                                                      if (chat.hasGeneratedMedia)
+                                                                        Icon(Icons.brush, color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.7), size: 14),
+                                                                    ],
+                                                                  )),
                                                     ),
                                                 ),
                                             );
@@ -325,6 +340,14 @@ class _AppDrawerState extends State<AppDrawer> {
                           },
                       ),
                       ListTile(
+                          leading: const Icon(Icons.share, color: Colors.green),
+                          title: const Text('Export Chat', style: TextStyle(color: Colors.white)),
+                          onTap: () async {
+                              Navigator.pop(ctx);
+                              await _exportChat(context, chat);
+                          },
+                      ),
+                      ListTile(
                           leading: const Icon(Icons.delete, color: Colors.redAccent),
                           title: const Text('Delete Chat', style: TextStyle(color: Colors.redAccent)),
                           onTap: () {
@@ -399,5 +422,55 @@ class _AppDrawerState extends State<AppDrawer> {
       ),
     );
     return result ?? false;
+  }
+  
+  Future<void> _exportChat(BuildContext context, ChatSession chat) async {
+    try {
+      // Load messages for this chat
+      final chatProvider = context.read<ChatProvider>();
+      await chatProvider.loadChatMessages(chat.id);
+      final loadedChat = chatProvider.chats.firstWhere((c) => c.id == chat.id);
+      
+      // Generate markdown content
+      final buffer = StringBuffer();
+      buffer.writeln('# ${loadedChat.title}');
+      buffer.writeln('');
+      buffer.writeln('Exported on: ${DateFormat.yMMMd().add_jm().format(DateTime.now())}');
+      buffer.writeln('');
+      buffer.writeln('---');
+      buffer.writeln('');
+      
+      for (final msg in loadedChat.messages) {
+        final role = msg.role.toString().split('.').last.toUpperCase();
+        final timestamp = DateFormat.jm().format(msg.timestamp);
+        buffer.writeln('**[$role]** _${timestamp}_');
+        buffer.writeln('');
+        buffer.writeln(msg.content);
+        buffer.writeln('');
+        buffer.writeln('---');
+        buffer.writeln('');
+      }
+      
+      // Save to temp file
+      final tempDir = await getTemporaryDirectory();
+      final sanitizedTitle = loadedChat.title.replaceAll(RegExp(r'[^\w\s]'), '').replaceAll(' ', '_');
+      final file = File('${tempDir.path}/${sanitizedTitle}.md');
+      await file.writeAsString(buffer.toString());
+      
+      // Share
+      await Share.shareXFiles([XFile(file.path)], text: 'Chat: ${loadedChat.title}');
+      
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Chat exported'), behavior: SnackBarBehavior.floating),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Export failed: $e'), behavior: SnackBarBehavior.floating),
+        );
+      }
+    }
   }
 }

@@ -4,8 +4,9 @@ import 'dart:async';
 
 class TypingIndicator extends StatefulWidget {
   final bool showElapsedTime;
+  final String? modelName;  // Optional model name to show while loading
   
-  const TypingIndicator({super.key, this.showElapsedTime = true});
+  const TypingIndicator({super.key, this.showElapsedTime = true, this.modelName});
 
   @override
   State<TypingIndicator> createState() => _TypingIndicatorState();
@@ -71,8 +72,23 @@ class _TypingIndicatorState extends State<TypingIndicator> {
             ),
           ),
           
-          // Elapsed time
-          if (widget.showElapsedTime) ...[
+          // Model name loading indicator (display name passed in directly)
+          if (widget.modelName != null) ...[
+            const SizedBox(width: 8),
+            Flexible(
+              child: Text(
+                'Loading ${widget.modelName}...',
+                style: TextStyle(
+                  color: colorScheme.onSurface.withValues(alpha: 0.6),
+                  fontSize: 12,
+                  fontStyle: FontStyle.italic,
+                ),
+                overflow: TextOverflow.ellipsis,
+                maxLines: 1,
+              ),
+            ),
+          ] else if (widget.showElapsedTime) ...[
+            // Elapsed time (only show if no model name)
             const SizedBox(width: 8),
             Text(
               _elapsedText,

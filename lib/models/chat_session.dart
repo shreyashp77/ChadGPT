@@ -13,6 +13,9 @@ class ChatSession {
 
   /// Returns true if the chat contains any generated media (images)
   bool get hasGeneratedMedia => messages.any((m) => m.generatedImageUrl != null);
+  
+  /// Returns true if the chat contains any user attachments (files/images)
+  bool get hasAttachments => messages.any((m) => m.attachmentPath != null);
 
   ChatSession({
     required this.id,

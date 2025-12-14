@@ -251,13 +251,17 @@ class _ChatScreenState extends State<ChatScreen> {
                         top: MediaQuery.of(context).padding.top + kToolbarHeight + 16,
                         bottom: 160 // Increased space for input area
                     ),
+                    // Virtualization optimizations for long conversations
+                    addAutomaticKeepAlives: false,  // Don't keep off-screen widgets alive
+                    addRepaintBoundaries: true,     // Isolate repaints
+                    cacheExtent: 500.0,             // Pre-render nearby items
                     itemCount: currentChat.messages.length + (chatProvider.isTyping && currentChat.messages.last.role != MessageRole.assistant ? 1 : 0),
                     itemBuilder: (context, index) {
                       if (index >= currentChat.messages.length) {
-                          // Show typing indicator instead of spinner
-                          return const Align(
+                          // Show typing indicator with model name if loading
+                          return Align(
                             alignment: Alignment.centerLeft,
-                            child: TypingIndicator(),
+                            child: TypingIndicator(modelName: chatProvider.loadingModelName),
                           );
                       }
                       return MessageBubble(message: currentChat.messages[index]);
@@ -284,6 +288,61 @@ class _ChatScreenState extends State<ChatScreen> {
                          child: Icon(Icons.arrow_downward, color: Theme.of(context).colorScheme.onSurface),
                        ),
                      ),
+                   
+                   // Context Window Usage Indicator - compact integrated design
+                   if (chatProvider.currentChat != null && chatProvider.estimatedCurrentTokens > 500)
+                     Container(
+                       margin: const EdgeInsets.only(bottom: 6, left: 24, right: 24),
+                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                       decoration: BoxDecoration(
+                         color: chatProvider.isNearContextLimit 
+                           ? Colors.orange.withValues(alpha: 0.1)
+                           : Theme.of(context).colorScheme.surface.withValues(alpha: 0.6),
+                         borderRadius: BorderRadius.circular(20),
+                         border: Border.all(
+                           color: chatProvider.isNearContextLimit 
+                             ? Colors.orange.withValues(alpha: 0.3)
+                             : Colors.white.withValues(alpha: 0.05),
+                         ),
+                       ),
+                       child: Row(
+                         mainAxisSize: MainAxisSize.min,
+                         children: [
+                           // Progress circle
+                           SizedBox(
+                             width: 16,
+                             height: 16,
+                             child: CircularProgressIndicator(
+                               value: chatProvider.contextWindowUsagePercent,
+                               strokeWidth: 2,
+                               backgroundColor: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.1),
+                               valueColor: AlwaysStoppedAnimation(
+                                 chatProvider.isNearContextLimit 
+                                   ? Colors.orange 
+                                   : Theme.of(context).colorScheme.primary.withValues(alpha: 0.7)
+                               ),
+                             ),
+                           ),
+                           const SizedBox(width: 8),
+                           // Token count
+                           Text(
+                             '${chatProvider.estimatedCurrentTokens} / ${ChatProvider.defaultContextWindow}',
+                             style: TextStyle(
+                               color: chatProvider.isNearContextLimit 
+                                 ? Colors.orange[300]
+                                 : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5),
+                               fontSize: 11,
+                               fontWeight: FontWeight.w500,
+                             ),
+                           ),
+                           if (chatProvider.isNearContextLimit) ...[
+                             const SizedBox(width: 6),
+                             Icon(Icons.warning_amber_rounded, size: 12, color: Colors.orange[300]),
+                           ],
+                         ],
+                       ),
+                     ),
+                   
                   Container(
                     margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                     child: ClipRRect(
@@ -567,7 +626,12 @@ class _ChatScreenState extends State<ChatScreen> {
                                            onTap: () async {
                                                Navigator.pop(context);
                                                HapticFeedback.lightImpact();
-                                               final result = await ImagePicker().pickImage(source: ImageSource.gallery);
+                                               // requestFullMetadata: false helps with HEIC conversion
+                                               final result = await ImagePicker().pickImage(
+                                                 source: ImageSource.gallery,
+                                                 requestFullMetadata: false,
+                                                 imageQuality: 90,  // Compress for faster processing
+                                               );
                                                if (result != null) {
                                                    setState(() {
                                                        _pendingAttachmentPath = result.path;
@@ -590,7 +654,11 @@ class _ChatScreenState extends State<ChatScreen> {
                                            onTap: () async {
                                                Navigator.pop(context);
                                                HapticFeedback.lightImpact();
-                                               final result = await ImagePicker().pickImage(source: ImageSource.camera);
+                                               final result = await ImagePicker().pickImage(
+                                                 source: ImageSource.camera,
+                                                 requestFullMetadata: false,
+                                                 imageQuality: 90,
+                                               );
                                                if (result != null) {
                                                    setState(() {
                                                        _pendingAttachmentPath = result.path;

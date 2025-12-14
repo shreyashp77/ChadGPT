@@ -49,10 +49,18 @@ class ChatProvider with ChangeNotifier {
 
   String? _currentVoiceSubtitle;
   String? get currentVoiceSubtitle => _currentVoiceSubtitle;
+  
+  // Live transcription for real-time STT preview
+  String? _liveTranscription;
+  String? get liveTranscription => _liveTranscription;
 
   // Generation timing for typing indicator
   DateTime? _generationStartTime;
   DateTime? get generationStartTime => _generationStartTime;
+  
+  // Model loading indicator (shows model name while waiting for first chunk)
+  String? _loadingModelName;
+  String? get loadingModelName => _loadingModelName;
   
   // Image generation tracking
   final Set<String> _activeImageGenerations = {};
@@ -184,8 +192,17 @@ class ChatProvider with ChangeNotifier {
 
        _speech.listen(
            onResult: (result) {
-               // If expecting final result, ignore partials
+               // Update live transcription for voice overlay
+               _liveTranscription = result.recognizedWords;
+               notifyListeners();
+               
+               // If expecting final result, only call callback on final
                if (waitForFinal && !result.finalResult) return;
+               
+               // On final result, clear live transcription
+               if (result.finalResult) {
+                   _liveTranscription = null;
+               }
                
                onResult(result.recognizedWords);
            },
@@ -200,6 +217,7 @@ class ChatProvider with ChangeNotifier {
 
   Future<void> stopListening() async {
       _isListening = false;
+      _liveTranscription = null;  // Clear live transcription
       await _speech.stop();
       notifyListeners();
   }
@@ -320,6 +338,14 @@ class ChatProvider with ChangeNotifier {
       // Load messages
       _currentChat!.messages = await _dbService.getMessages(chatId);
       notifyListeners();
+    }
+  }
+  
+  /// Load messages for a specific chat (for export or other purposes)
+  Future<void> loadChatMessages(String chatId) async {
+    final chat = _chats.firstWhere((c) => c.id == chatId, orElse: () => throw Exception('Chat not found'));
+    if (chat.messages.isEmpty) {
+      chat.messages = await _dbService.getMessages(chatId);
     }
   }
 
@@ -835,6 +861,36 @@ class ChatProvider with ChangeNotifier {
     return _currentChat!.messages.fold(0, (sum, msg) => sum + msg.totalTokens);
   }
   
+  /// Estimate current tokens based on message content (~4 chars = 1 token heuristic)
+  int get estimatedCurrentTokens {
+    if (_currentChat == null) return 0;
+    int estimated = 0;
+    for (final msg in _currentChat!.messages) {
+      // Use actual tokens if available, otherwise estimate
+      if (msg.totalTokens > 0) {
+        estimated += msg.totalTokens;
+      } else {
+        // Estimate: ~4 characters per token
+        estimated += (msg.content.length / 4).ceil();
+      }
+    }
+    return estimated;
+  }
+  
+  /// Default context window size (can be overridden per model in the future)
+  static const int defaultContextWindow = 8192;
+  
+  /// Get context window usage as a percentage (0.0 to 1.0)
+  double get contextWindowUsagePercent {
+    if (_currentChat == null) return 0.0;
+    final used = estimatedCurrentTokens;
+    final limit = defaultContextWindow;
+    return (used / limit).clamp(0.0, 1.0);
+  }
+  
+  /// Returns true if approaching context limit (> 80%)
+  bool get isNearContextLimit => contextWindowUsagePercent > 0.8;
+  
   // Active generation tracking
 
   
@@ -857,6 +913,10 @@ class ChatProvider with ChangeNotifier {
     _abortGeneration = false;
     _activeGenerations.add(targetChat.id); // Add to active set
     _generationStartTime = DateTime.now();
+    
+    // Set loading model name for indicator (use display name, not raw ID)
+    final modelId = _settingsProvider.settings.selectedModelId;
+    _loadingModelName = modelId != null ? _settingsProvider.getModelDisplayName(modelId) : null;
     notifyListeners();
 
     // Prepare for response
@@ -901,6 +961,9 @@ class ChatProvider with ChangeNotifier {
         if (chunk.content != null) {
           // ON FIRST CHUNK: Add the message to the list
           if (!hasAddedMessage) {
+              // Clear model loading indicator - we've received content
+              _loadingModelName = null;
+              
               final assistantMsg = Message(
                 id: assistantMsgId,
                 chatId: targetChat.id,
@@ -986,11 +1049,15 @@ class ChatProvider with ChangeNotifier {
       }
       
       if (hasAddedMessage) {
-          // Update final message with token counts
+          // Check if generation was aborted with partial content
+          final wasTruncated = _abortGeneration && fullResponse.isNotEmpty;
+          
+          // Update final message with token counts and truncation flag
            if (targetChat.messages.isNotEmpty && targetChat.messages.last.id == assistantMsgId) {
               targetChat.messages.last = targetChat.messages.last.copyWith(
                 promptTokens: promptTokens,
                 completionTokens: completionTokens,
+                isTruncated: wasTruncated,
               );
               
               // Update final message in DB
@@ -1006,17 +1073,63 @@ class ChatProvider with ChangeNotifier {
       }
 
     } catch (e) {
-      targetChat.messages.add(Message(
-        id: const Uuid().v4(),
+      // Create or update assistant message with error state
+      final errorMsgId = hasAddedMessage ? assistantMsgId : const Uuid().v4();
+      final errorMsg = Message(
+        id: errorMsgId,
         chatId: targetChat.id,
-        role: MessageRole.system,
-        content: "Error: $e",
+        role: MessageRole.assistant,
+        content: "Error: ${e.toString().replaceAll('Exception: ', '')}",
         timestamp: DateTime.now(),
-      ));
+        hasError: true,
+      );
+      
+      if (hasAddedMessage) {
+        // Update existing message
+        final msgIndex = targetChat.messages.indexWhere((m) => m.id == assistantMsgId);
+        if (msgIndex != -1) {
+          targetChat.messages[msgIndex] = errorMsg;
+          if (!targetChat.isTemp) {
+            await _dbService.updateMessage(errorMsg);
+          }
+        }
+      } else {
+        // Add new error message
+        targetChat.messages.add(errorMsg);
+        if (!targetChat.isTemp) {
+          await _dbService.insertMessage(errorMsg, false);
+        }
+      }
     } finally {
       _activeGenerations.remove(targetChat.id);
       _generationStartTime = null;
+      _loadingModelName = null;  // Clear model loading indicator
       notifyListeners();
     }
+  }
+  
+  /// Retry the last failed message
+  Future<void> retryLastMessage() async {
+    if (_currentChat == null || _currentChat!.messages.isEmpty) return;
+    
+    // Find the last assistant message with error
+    final lastMsg = _currentChat!.messages.last;
+    if (lastMsg.role != MessageRole.assistant || !lastMsg.hasError) return;
+    
+    // Remove the error message
+    _currentChat!.messages.removeLast();
+    if (!_isTempMode) {
+      await _dbService.deleteMessage(lastMsg.id);
+    }
+    notifyListeners();
+    
+    if (_currentChat!.messages.isEmpty) return;
+    
+    // Find the last user message
+    final userMsg = _currentChat!.messages.last;
+    if (userMsg.role != MessageRole.user) return;
+    
+    final useWebSearch = _settingsProvider.settings.useWebSearch;
+    await _generateAssistantResponse(userMsg.content, useWebSearch: useWebSearch);
   }
 }

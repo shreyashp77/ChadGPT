@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
@@ -134,13 +135,16 @@ class _MessageBubbleState extends State<MessageBubble> {
                     decoration: BoxDecoration(
                         color: isUser 
                             ? colorScheme.primary 
-                            : const Color(0xFF2A2A2A),
+                            : (message.hasError ? const Color(0xFF2A1515) : const Color(0xFF2A2A2A)),
                         borderRadius: BorderRadius.only(
                             topLeft: const Radius.circular(20),
                             topRight: const Radius.circular(20),
                             bottomLeft: Radius.circular(isUser ? 20 : 4),
                             bottomRight: Radius.circular(isUser ? 4 : 20),
                         ),
+                        border: message.hasError 
+                            ? Border.all(color: Colors.red.withValues(alpha: 0.5), width: 1.5)
+                            : null,
                         boxShadow: [
                             BoxShadow(
                                 color: Colors.black.withValues(alpha: 0.1),
@@ -377,6 +381,35 @@ class _MessageBubbleState extends State<MessageBubble> {
                                   ),
                                 ),
                               ),
+                            
+                            // Truncation indicator
+                            if (message.isTruncated)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 8),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: Colors.orange.withValues(alpha: 0.15),
+                                    borderRadius: BorderRadius.circular(6),
+                                    border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(Icons.stop_circle_outlined, size: 12, color: Colors.orange[300]),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        'Response stopped',
+                                        style: TextStyle(
+                                          color: Colors.orange[300],
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
                         ],
                     ),
                 ),
@@ -388,8 +421,36 @@ class _MessageBubbleState extends State<MessageBubble> {
                         child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                                // Hide speaker for image responses
-                                if (message.generatedImageUrl == null && !message.isImageGenerating) ...[
+                                // Retry button for error messages
+                                if (message.hasError && !chatProvider.isTyping) ...[
+                                    Container(
+                                        decoration: BoxDecoration(
+                                            color: Colors.red.withValues(alpha: 0.15),
+                                            borderRadius: BorderRadius.circular(12),
+                                        ),
+                                        child: InkWell(
+                                            onTap: () {
+                                                HapticFeedback.lightImpact();
+                                                chatProvider.retryLastMessage();
+                                            },
+                                            borderRadius: BorderRadius.circular(12),
+                                            child: Padding(
+                                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                                child: Row(
+                                                    mainAxisSize: MainAxisSize.min,
+                                                    children: [
+                                                        Icon(Icons.refresh, size: 14, color: Colors.red[300]),
+                                                        const SizedBox(width: 4),
+                                                        Text('Retry', style: TextStyle(color: Colors.red[300], fontSize: 12, fontWeight: FontWeight.w500)),
+                                                    ],
+                                                ),
+                                            ),
+                                        ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                ],
+                                // Hide speaker for image responses and errors
+                                if (message.generatedImageUrl == null && !message.isImageGenerating && !message.hasError) ...[
                                     _buildActionButton(
                                         context, 
                                         icon: Icons.volume_up_outlined, 
@@ -414,6 +475,7 @@ class _MessageBubbleState extends State<MessageBubble> {
                                     }
                                 ),
                                 if (!chatProvider.isTyping && 
+                                    !message.hasError &&
                                     (chatProvider.currentChat?.messages.isNotEmpty ?? false) && 
                                     chatProvider.currentChat!.messages.last.id == message.id) ...[
                                     const SizedBox(width: 12),
@@ -426,8 +488,8 @@ class _MessageBubbleState extends State<MessageBubble> {
                                         }
                                     ),
                                 ],
-                                // Token count badge (hide for image responses)
-                                if (message.totalTokens > 0 && message.generatedImageUrl == null) ...[
+                                // Token count badge (hide for image responses and errors)
+                                if (message.totalTokens > 0 && message.generatedImageUrl == null && !message.hasError) ...[
                                     const SizedBox(width: 12),
                                     _buildTokenBadge(context, message),
                                 ],
@@ -542,32 +604,107 @@ class _MessageBubbleState extends State<MessageBubble> {
   }
 
   Widget _buildAttachmentPreview(String path) {
-      return Container(
+    final fileName = path.split('/').last;
+    final extension = fileName.split('.').last.toLowerCase();
+    final isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'heic', 'heif'].contains(extension);
+    
+    if (isImage) {
+      // Show image thumbnail with tap-to-view
+      return GestureDetector(
+        onTap: () {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => Scaffold(
+                backgroundColor: Colors.black,
+                appBar: AppBar(
+                  backgroundColor: Colors.transparent,
+                  elevation: 0,
+                  leading: IconButton(
+                    icon: const Icon(Icons.close, color: Colors.white),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ),
+                body: Center(
+                  child: InteractiveViewer(
+                    child: Image.file(File(path)),
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
+        child: Container(
           margin: const EdgeInsets.only(bottom: 10),
-          padding: const EdgeInsets.all(8),
+          constraints: const BoxConstraints(maxWidth: 200, maxHeight: 150),
           decoration: BoxDecoration(
-            color: Colors.black.withValues(alpha: 0.2),
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.3),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
           ),
-          child: Row(
-              mainAxisSize: MainAxisSize.min,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: Stack(
               children: [
-                  const Icon(Icons.attachment, size: 16, color: Colors.white70),
-                  const SizedBox(width: 8),
-                  Flexible(
-                    child: Text(
-                      path.split('/').last, 
-                      maxLines: 1, 
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 12, color: Colors.white70),
-                    )
-                  )
-              ]
-          )
+                Image.file(
+                  File(path),
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => Container(
+                    padding: const EdgeInsets.all(16),
+                    color: Colors.grey[800],
+                    child: const Icon(Icons.broken_image, color: Colors.white54),
+                  ),
+                ),
+                // Overlay with expand icon
+                Positioned(
+                  bottom: 4,
+                  right: 4,
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: Colors.black54,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: const Icon(Icons.zoom_out_map, size: 14, color: Colors.white70),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       );
+    }
+    
+    // Non-image files: show filename with icon
+    return Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: Colors.black.withValues(alpha: 0.2),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+                const Icon(Icons.attachment, size: 16, color: Colors.white70),
+                const SizedBox(width: 8),
+                Flexible(
+                  child: Text(
+                    fileName, 
+                    maxLines: 1, 
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 12, color: Colors.white70),
+                  )
+                )
+            ]
+        )
+    );
   }
-
-  }
+}
 
 
 class CodeElementBuilder extends MarkdownElementBuilder {

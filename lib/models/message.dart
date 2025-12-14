@@ -22,6 +22,12 @@ class Message {
   final String? comfyuiFilename;       // Filename in ComfyUI output folder
   final bool isImageGenerating;        // Whether image is being generated
   final double imageProgress;          // Progress 0.0-1.0
+  
+  // Truncation tracking (response stopped mid-generation)
+  final bool isTruncated;
+  
+  // Error tracking (for retry functionality)
+  final bool hasError;
 
   Message({
     required this.id,
@@ -39,6 +45,8 @@ class Message {
     this.comfyuiFilename,
     this.isImageGenerating = false,
     this.imageProgress = 0.0,
+    this.isTruncated = false,
+    this.hasError = false,
   });
 
   // Helper to get total tokens for this message
@@ -66,6 +74,8 @@ class Message {
     Object? comfyuiFilename = _unset,
     bool? isImageGenerating,
     double? imageProgress,
+    bool? isTruncated,
+    bool? hasError,
   }) {
     return Message(
       id: id ?? this.id,
@@ -87,6 +97,8 @@ class Message {
           : comfyuiFilename as String?,
       isImageGenerating: isImageGenerating ?? this.isImageGenerating,
       imageProgress: imageProgress ?? this.imageProgress,
+      isTruncated: isTruncated ?? this.isTruncated,
+      hasError: hasError ?? this.hasError,
     );
   }
 
@@ -104,6 +116,8 @@ class Message {
       'is_edited': isEdited ? 1 : 0,
       'generated_image_url': generatedImageUrl,
       'comfyui_filename': comfyuiFilename,
+      'is_truncated': isTruncated ? 1 : 0,
+      'has_error': hasError ? 1 : 0,
     };
   }
 
@@ -123,6 +137,8 @@ class Message {
       isEdited: map['is_edited'] == 1,
       generatedImageUrl: map['generated_image_url'],
       comfyuiFilename: map['comfyui_filename'],
+      isTruncated: map['is_truncated'] == 1,
+      hasError: map['has_error'] == 1,
     );
   }
 }

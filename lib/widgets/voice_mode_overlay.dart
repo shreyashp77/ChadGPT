@@ -156,24 +156,60 @@ class _VoiceModeOverlayState extends State<VoiceModeOverlay> with SingleTickerPr
                     ),
                     
                     // Transcript / Subtitles
-                    if (chatProvider.currentVoiceSubtitle != null)
-                        Positioned(
-                            bottom: 50,
-                            left: 20,
-                            right: 20,
-                            child: Text(
-                                chatProvider.currentVoiceSubtitle!,
-                                textAlign: TextAlign.center,
-                                style: const TextStyle(
-                                    color: Colors.white, 
-                                    fontSize: 18, 
-                                    fontWeight: FontWeight.w500,
-                                    shadows: [
-                                        Shadow(blurRadius: 10, color: Colors.black, offset: Offset(0, 2))
-                                    ]
-                                ),
-                            ).animate(key: ValueKey(chatProvider.currentVoiceSubtitle)).fadeIn(duration: 200.ms),
+                    // Show live transcription when listening, or subtitle when speaking
+                    Positioned(
+                        bottom: 50,
+                        left: 20,
+                        right: 20,
+                        child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                                // Live transcription while listening
+                                if (isListening && chatProvider.liveTranscription != null && chatProvider.liveTranscription!.isNotEmpty)
+                                    Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                        decoration: BoxDecoration(
+                                            color: AppTheme.accent.withValues(alpha: 0.15),
+                                            borderRadius: BorderRadius.circular(16),
+                                            border: Border.all(color: AppTheme.accent.withValues(alpha: 0.3)),
+                                        ),
+                                        child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                                Icon(Icons.mic, size: 16, color: AppTheme.accent),
+                                                const SizedBox(width: 8),
+                                                Flexible(
+                                                    child: Text(
+                                                        chatProvider.liveTranscription!,
+                                                        textAlign: TextAlign.center,
+                                                        style: TextStyle(
+                                                            color: Colors.white.withValues(alpha: 0.9),
+                                                            fontSize: 16,
+                                                            fontWeight: FontWeight.w400,
+                                                        ),
+                                                    ),
+                                                ),
+                                            ],
+                                        ),
+                                    ).animate().fadeIn(duration: 200.ms),
+                                
+                                // Voice subtitle (TTS current sentence)
+                                if (chatProvider.currentVoiceSubtitle != null && !isListening)
+                                    Text(
+                                        chatProvider.currentVoiceSubtitle!,
+                                        textAlign: TextAlign.center,
+                                        style: const TextStyle(
+                                            color: Colors.white, 
+                                            fontSize: 18, 
+                                            fontWeight: FontWeight.w500,
+                                            shadows: [
+                                                Shadow(blurRadius: 10, color: Colors.black, offset: Offset(0, 2))
+                                            ]
+                                        ),
+                                    ).animate(key: ValueKey(chatProvider.currentVoiceSubtitle)).fadeIn(duration: 200.ms),
+                            ],
                         ),
+                    ),
                 ],
             ),
         ),

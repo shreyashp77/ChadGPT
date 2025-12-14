@@ -24,7 +24,7 @@ class DatabaseService {
     String path = join(await getDatabasesPath(), AppConstants.dbName);
     return await openDatabase(
       path,
-      version: 6, // Incremented for ComfyUI image generation
+      version: 8, // Incremented for error tracking
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -57,6 +57,8 @@ class DatabaseService {
         is_edited INTEGER DEFAULT 0,
         generated_image_url TEXT,
         comfyui_filename TEXT,
+        is_truncated INTEGER DEFAULT 0,
+        has_error INTEGER DEFAULT 0,
         FOREIGN KEY (chat_id) REFERENCES ${AppConstants.tableNameChats} (id) ON DELETE CASCADE
       )
     ''');
@@ -113,6 +115,24 @@ class DatabaseService {
        }
        if (!columnNames.contains('comfyui_filename')) {
            await db.execute('ALTER TABLE ${AppConstants.tableNameMessages} ADD COLUMN comfyui_filename TEXT');
+       }
+    }
+    if (oldVersion < 7) {
+       // Add is_truncated column for truncation tracking
+       final columns = await db.rawQuery('PRAGMA table_info(${AppConstants.tableNameMessages})');
+       final columnNames = columns.map((c) => c['name']).toSet();
+       
+       if (!columnNames.contains('is_truncated')) {
+           await db.execute('ALTER TABLE ${AppConstants.tableNameMessages} ADD COLUMN is_truncated INTEGER DEFAULT 0');
+       }
+    }
+    if (oldVersion < 8) {
+       // Add has_error column for retry functionality
+       final columns = await db.rawQuery('PRAGMA table_info(${AppConstants.tableNameMessages})');
+       final columnNames = columns.map((c) => c['name']).toSet();
+       
+       if (!columnNames.contains('has_error')) {
+           await db.execute('ALTER TABLE ${AppConstants.tableNameMessages} ADD COLUMN has_error INTEGER DEFAULT 0');
        }
     }
   }
