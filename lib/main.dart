@@ -12,7 +12,11 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
   // Initialize notifications
-  await NotificationService().initialize();
+  try {
+    await NotificationService().initialize();
+  } catch (e) {
+    debugPrint('Failed to initialize notifications: $e');
+  }
   
   runApp(const ChadGPTApp());
 }
