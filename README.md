@@ -17,6 +17,12 @@ Choose from multiple search providers to augment your AI with real-time web cont
 - Google Custom Search
 - Perplexity AI
 
+### 📂 Smart Organization
+- **Chat Folders**: Organize your conversations into custom folders
+- **Tabbed Drawer**: Cleanly separate your chat history from your folder structure
+- **Pinned Chats**: Keep important conversations at the top for quick access
+- **Deep Search**: Search through the actual *content* of your messages, not just titles
+
 ### 🎨 Image Generation
 Integrated **ComfyUI** support for high-quality local image generation.
 
@@ -47,8 +53,14 @@ Switch between different AI personalities:
 - Customizable theme colors
 - Beautiful, modern UI with smooth animations
 
+### ⚡ Performance
+- **Smart Caching**: Efficiently manages API requests to minimize latency and cost
+- **Background Architecture**: Robustly handles long-running generations without interruption
+- **Notifications**: System-level alerts keep you informed when long tasks complete
+
 ### 📱 Cross-Platform
-Designed for **Android**, **iOS**, **Linux**, **Windows**, and **macOS**.
+- Designed for **Android**, **iOS**, **Linux**, **Windows**, and **macOS**.
+- **Background Capable**: Continues generating responses even when minimized (Android) via foreground services.
 
 ---
 
@@ -174,6 +186,9 @@ python main.py --listen 0.0.0.0
 - **Markdown Rendering**: flutter_markdown
 - **Syntax Highlighting**: flutter_highlighter
 - **TTS/STT**: flutter_tts, speech_to_text
+- **Notifications**: flutter_local_notifications
+- **Background Tasks**: flutter_foreground_task
+- **Wake Lock**: wakelock_plus
 
 ---
 
