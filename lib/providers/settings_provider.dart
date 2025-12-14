@@ -16,6 +16,10 @@ class SettingsProvider with ChangeNotifier {
   List<String> _availableModels = [];
   List<Map<String, dynamic>> _openRouterModels = []; // Store rich model data
   bool _isLoadingModels = false;
+  
+  // Model list caching
+  DateTime? _lastModelFetch;
+  static const _modelCacheTtl = Duration(minutes: 5);
   String? _error;
   bool _isSearxngConnected = false;
   bool _isOpenRouterConnected = false;
@@ -141,7 +145,15 @@ class SettingsProvider with ChangeNotifier {
       return modelId.split('/').last;
   }
 
-  Future<void> fetchModels() async {
+  Future<void> fetchModels({bool forceRefresh = false}) async {
+    // Skip fetch if within TTL and not forced
+    if (!forceRefresh && _lastModelFetch != null && _availableModels.isNotEmpty) {
+      final elapsed = DateTime.now().difference(_lastModelFetch!);
+      if (elapsed < _modelCacheTtl) {
+        return; // Use cached models
+      }
+    }
+    
     _isLoadingModels = true;
     _error = null;
     notifyListeners();
@@ -170,6 +182,8 @@ class SettingsProvider with ChangeNotifier {
         _openRouterModels = [];
         _isOpenRouterConnected = false;
       }
+      
+      _lastModelFetch = DateTime.now(); // Update cache timestamp
       
       if (_settings.selectedModelId == null && _availableModels.isNotEmpty) {
         _settings = _settings.copyWith(selectedModelId: _availableModels.first);

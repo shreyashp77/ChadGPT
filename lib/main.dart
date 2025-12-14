@@ -6,9 +6,14 @@ import 'utils/theme.dart';
 import 'screens/home_screen.dart'; // Will create effectively
 import 'screens/settings_screen.dart'; // Will create effectively
 import 'screens/chat_screen.dart'; // Will create effectively
+import 'services/notification_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  // Initialize notifications
+  await NotificationService().initialize();
+  
   runApp(const ChadGPTApp());
 }
 

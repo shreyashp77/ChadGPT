@@ -8,15 +8,23 @@ import 'dart:async';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/database_service.dart';
 import '../services/comfyui_service.dart';
+import '../services/notification_service.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
+import 'package:flutter_foreground_task/flutter_foreground_task.dart';
+import 'dart:isolate'; // details: SendPort
 import 'settings_provider.dart';
 import '../models/persona.dart';
 import '../services/tts_service.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 
-class ChatProvider with ChangeNotifier {
+class ChatProvider with ChangeNotifier, WidgetsBindingObserver {
   final DatabaseService _dbService = DatabaseService();
   final SettingsProvider _settingsProvider;
   final TtsService _ttsService = TtsService();
+  final NotificationService _notificationService = NotificationService();
+  
+  // App lifecycle state
+  bool _isAppInBackground = false;
   
   // STT
   final stt.SpeechToText _speech = stt.SpeechToText();
@@ -38,6 +46,16 @@ class ChatProvider with ChangeNotifier {
   bool get isTempMode => _isTempMode;
   Persona get currentPersona => _currentPersona ?? Persona.presets.first;
   List<Persona> get allPersonas => [...Persona.presets, ..._customPersonas];
+  
+  // Folders support
+  Set<String> _extraFolders = {};
+  List<String> get allFolders {
+      final folders = <String>{..._extraFolders};
+      for (var chat in _chats) {
+        if (chat.folder != null) folders.add(chat.folder!);
+      }
+      return folders.toList()..sort((a, b) => a.compareTo(b));
+  }
   
   // Voice getters
   bool get isListening => _isListening;
@@ -78,6 +96,13 @@ class ChatProvider with ChangeNotifier {
   ChatProvider(this._settingsProvider) {
     _loadChats();
     _loadCustomPersonas();
+    _loadExtraFolders();
+    
+    // Register for app lifecycle events
+    WidgetsBinding.instance.addObserver(this);
+    
+    // Initialize foreground service
+    _initForegroundTask();
     
     // Listen to TTS state changes
     _ttsService.onStateChanged = (isPlaying) {
@@ -110,6 +135,52 @@ class ChatProvider with ChangeNotifier {
     };
   }
 
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    _isAppInBackground = state == AppLifecycleState.paused || 
+                          state == AppLifecycleState.inactive ||
+                          state == AppLifecycleState.hidden;
+  }
+
+  // Initialize Foreground Task
+  void _initForegroundTask() {
+    FlutterForegroundTask.init(
+      androidNotificationOptions: AndroidNotificationOptions(
+        channelId: 'chadgpt_bg_service',
+        channelName: 'Background Service',
+        channelDescription: 'Keeps app alive during response generation',
+        channelImportance: NotificationChannelImportance.LOW,
+        priority: NotificationPriority.LOW,
+      ),
+      iosNotificationOptions: const IOSNotificationOptions(
+        showNotification: true,
+        playSound: false,
+      ),
+      foregroundTaskOptions: ForegroundTaskOptions(
+        eventAction: ForegroundTaskEventAction.repeat(5000),
+        autoRunOnBoot: false,
+        allowWakeLock: true,
+        allowWifiLock: true,
+      ),
+    );
+  }
+
+  Future<void> _startForegroundService() async {
+    if (!await FlutterForegroundTask.isRunningService) {
+      await FlutterForegroundTask.startService(
+        notificationTitle: 'ChadGPT Generating',
+        notificationText: 'Generating response in background...',
+        callback: startCallback,
+      );
+    }
+  }
+
+  Future<void> _stopForegroundService() async {
+    if (await FlutterForegroundTask.isRunningService) {
+      await FlutterForegroundTask.stopService();
+    }
+  }
+
   // Voice Methods
   Future<bool> initializeStt() async {
       return await _speech.initialize(
@@ -128,24 +199,13 @@ class ChatProvider with ChangeNotifier {
              // Handle transient errors without stopping the mode
              if (['error_speech_timeout', 'error_no_match', 'error_client'].contains(error.errorMsg)) {
                   // If we are in continuous mode, we might want to just restart listening or ignore.
-                  // For client error, it signifies busy state, so we retry after small delay.
-                  if (_isContinuousVoiceMode) {
-                      Future.delayed(const Duration(milliseconds: 500), () {
-                          if (_isContinuousVoiceMode && !_isListening && !isTyping) {
-                               startListening(
-                                   (text) {
-                                       if (text.trim().isNotEmpty) sendMessage(text);
-                                   },
-                                   waitForFinal: true
-                               );
-                          }
-                      });
-                      return;
-                  }
-             }
-
-             if (_isContinuousVoiceMode) {
-                 stopContinuousVoiceMode();
+                   if (_isContinuousVoiceMode) {
+                        // ignore
+                   } else {
+                       _isContinuousVoiceMode = false;
+                   }
+             } else {
+                 _isContinuousVoiceMode = false;
              }
         },
       );
@@ -251,6 +311,32 @@ class ChatProvider with ChangeNotifier {
         print('Error loading custom personas: $e');
       }
     }
+  }
+
+  Future<void> _loadExtraFolders() async {
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        final List<String>? stored = prefs.getStringList('extra_folders');
+        if (stored != null) {
+            _extraFolders = stored.toSet();
+            notifyListeners();
+        }
+      } catch (e) {
+        print('Error loading extra folders: $e');
+      }
+  }
+  
+  Future<void> _saveExtraFolders() async {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setStringList('extra_folders', _extraFolders.toList());
+  }
+
+  Future<void> createFolder(String name) async {
+      if (!_extraFolders.contains(name)) {
+        _extraFolders.add(name);
+        await _saveExtraFolders();
+        notifyListeners();
+      }
   }
 
   Future<void> _saveCustomPersonas() async {
@@ -394,6 +480,19 @@ class ChatProvider with ChangeNotifier {
     });
     
     notifyListeners();
+  }
+
+  Future<void> moveToFolder(String chatId, String? folder) async {
+    final chatIndex = _chats.indexWhere((c) => c.id == chatId);
+    if (chatIndex == -1) return;
+    
+    await _dbService.updateChatFolder(chatId, folder);
+    _chats[chatIndex].folder = folder;
+    notifyListeners();
+  }
+
+  Future<List<String>> getFolders() async {
+    return await _dbService.getFolders();
   }
 
   bool _abortGeneration = false;
@@ -914,6 +1013,12 @@ class ChatProvider with ChangeNotifier {
     _activeGenerations.add(targetChat.id); // Add to active set
     _generationStartTime = DateTime.now();
     
+    // Enable wake lock to keep generating in background
+    WakelockPlus.enable();
+    
+    // Start foreground service to keep process alive
+    _startForegroundService();
+    
     // Set loading model name for indicator (use display name, not raw ID)
     final modelId = _settingsProvider.settings.selectedModelId;
     _loadingModelName = modelId != null ? _settingsProvider.getModelDisplayName(modelId) : null;
@@ -928,6 +1033,9 @@ class ChatProvider with ChangeNotifier {
     
     // Flag to track if we've started receiving content and added the message
     bool hasAddedMessage = false;
+    
+    // Response content (declared here so it's accessible in catch block)
+    String fullResponse = "";
 
     try {
       // Check for web search
@@ -945,8 +1053,6 @@ class ChatProvider with ChangeNotifier {
         searchResults: searchResults,
         systemPrompt: targetChat.systemPrompt,
       );
-
-      String fullResponse = "";
       
       // Streaming TTS Buffer
       String sentenceBuffer = "";
@@ -1061,9 +1167,18 @@ class ChatProvider with ChangeNotifier {
               );
               
               // Update final message in DB
-              if (!targetChat.isTemp) {
-                 await _dbService.updateMessage(targetChat.messages.last);
-              }
+               if (!targetChat.isTemp) {
+                  await _dbService.updateMessage(targetChat.messages.last);
+               }
+               
+               // Send notification if app is in background
+               if (_isAppInBackground && fullResponse.isNotEmpty) {
+                 _notificationService.showMessageNotification(
+                   title: targetChat.title,
+                   body: fullResponse,
+                   chatId: targetChat.id,
+                 );
+               }
            }
       }
 
@@ -1073,37 +1188,63 @@ class ChatProvider with ChangeNotifier {
       }
 
     } catch (e) {
-      // Create or update assistant message with error state
-      final errorMsgId = hasAddedMessage ? assistantMsgId : const Uuid().v4();
-      final errorMsg = Message(
-        id: errorMsgId,
-        chatId: targetChat.id,
-        role: MessageRole.assistant,
-        content: "Error: ${e.toString().replaceAll('Exception: ', '')}",
-        timestamp: DateTime.now(),
-        hasError: true,
-      );
+      // If app is in background and we have partial content, treat as truncation not error
+      final isConnectionError = e.toString().contains('Connection closed') || 
+                                 e.toString().contains('ClientException');
       
-      if (hasAddedMessage) {
-        // Update existing message
+      if (_isAppInBackground && hasAddedMessage && fullResponse.isNotEmpty && isConnectionError) {
+        // Update message as truncated, not errored (rare case if wake lock fails)
         final msgIndex = targetChat.messages.indexWhere((m) => m.id == assistantMsgId);
         if (msgIndex != -1) {
-          targetChat.messages[msgIndex] = errorMsg;
+          targetChat.messages[msgIndex] = targetChat.messages[msgIndex].copyWith(
+            isTruncated: true,
+            promptTokens: promptTokens,
+            completionTokens: completionTokens,
+          );
           if (!targetChat.isTemp) {
-            await _dbService.updateMessage(errorMsg);
+            await _dbService.updateMessage(targetChat.messages[msgIndex]);
           }
         }
       } else {
-        // Add new error message
-        targetChat.messages.add(errorMsg);
-        if (!targetChat.isTemp) {
-          await _dbService.insertMessage(errorMsg, false);
+        // Normal error handling
+        final errorMsgId = hasAddedMessage ? assistantMsgId : const Uuid().v4();
+        final errorMsg = Message(
+          id: errorMsgId,
+          chatId: targetChat.id,
+          role: MessageRole.assistant,
+          content: "Error: ${e.toString().replaceAll('Exception: ', '')}",
+          timestamp: DateTime.now(),
+          hasError: true,
+        );
+        
+        if (hasAddedMessage) {
+          // Update existing message
+          final msgIndex = targetChat.messages.indexWhere((m) => m.id == assistantMsgId);
+          if (msgIndex != -1) {
+            targetChat.messages[msgIndex] = errorMsg;
+            if (!targetChat.isTemp) {
+              await _dbService.updateMessage(errorMsg);
+            }
+          }
+        } else {
+          // Add new error message
+          targetChat.messages.add(errorMsg);
+          if (!targetChat.isTemp) {
+            await _dbService.insertMessage(errorMsg, false);
+          }
         }
       }
     } finally {
       _activeGenerations.remove(targetChat.id);
       _generationStartTime = null;
       _loadingModelName = null;  // Clear model loading indicator
+      
+      // Disable wake lock when generation ends
+      WakelockPlus.disable();
+      
+      // Stop foreground service
+      _stopForegroundService();
+      
       notifyListeners();
     }
   }
@@ -1131,5 +1272,40 @@ class ChatProvider with ChangeNotifier {
     
     final useWebSearch = _settingsProvider.settings.useWebSearch;
     await _generateAssistantResponse(userMsg.content, useWebSearch: useWebSearch);
+  }
+}
+
+@pragma('vm:entry-point')
+void startCallback() {
+  FlutterForegroundTask.setTaskHandler(FirstTaskHandler());
+}
+
+class FirstTaskHandler extends TaskHandler {
+  @override
+  Future<void> onStart(DateTime timestamp, TaskStarter starter) async {
+    // Background task started
+  }
+
+  @override
+  Future<void> onEvent(DateTime timestamp, SendPort? sendPort) async {
+    // Background event
+  }
+
+  @override
+  Future<void> onDestroy(DateTime timestamp) async {
+    // Background task destroyed
+  }
+
+  @override
+  void onButtonPressed(String id) {}
+
+  @override
+  void onNotificationPressed() {
+    FlutterForegroundTask.launchApp("/");
+  }
+  
+  @override
+  void onRepeatEvent(DateTime timestamp) {
+    // Optional
   }
 }

@@ -10,6 +10,7 @@ class ChatSession {
   String? systemPrompt;
   bool isPinned;
   bool hasUnreadMessages;
+  String? folder;  // Folder for organization
 
   /// Returns true if the chat contains any generated media (images)
   bool get hasGeneratedMedia => messages.any((m) => m.generatedImageUrl != null);
@@ -27,6 +28,7 @@ class ChatSession {
     this.systemPrompt,
     this.isPinned = false,
     this.hasUnreadMessages = false,
+    this.folder,
   }) : messages = messages ?? [];
 
   Map<String, dynamic> toMap() {
@@ -38,6 +40,7 @@ class ChatSession {
       'system_prompt': systemPrompt,
       'is_pinned': isPinned ? 1 : 0,
       'has_unread_messages': hasUnreadMessages ? 1 : 0,
+      'folder': folder,
     };
   }
 
@@ -52,6 +55,7 @@ class ChatSession {
       systemPrompt: map['system_prompt'],
       isPinned: map['is_pinned'] == 1,
       hasUnreadMessages: map['has_unread_messages'] == 1,
+      folder: map['folder'],
     );
   }
 }

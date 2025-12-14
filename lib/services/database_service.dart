@@ -24,7 +24,7 @@ class DatabaseService {
     String path = join(await getDatabasesPath(), AppConstants.dbName);
     return await openDatabase(
       path,
-      version: 8, // Incremented for error tracking
+      version: 9, // Added folder support
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -135,6 +135,15 @@ class DatabaseService {
            await db.execute('ALTER TABLE ${AppConstants.tableNameMessages} ADD COLUMN has_error INTEGER DEFAULT 0');
        }
     }
+    if (oldVersion < 9) {
+       // Add folder column to chats for organization
+       final columns = await db.rawQuery('PRAGMA table_info(${AppConstants.tableNameChats})');
+       final columnNames = columns.map((c) => c['name']).toSet();
+       
+       if (!columnNames.contains('folder')) {
+           await db.execute('ALTER TABLE ${AppConstants.tableNameChats} ADD COLUMN folder TEXT');
+       }
+    }
   }
 
   // Chat Operations
@@ -185,6 +194,26 @@ class DatabaseService {
       where: 'id = ?',
       whereArgs: [id],
     );
+  }
+
+  Future<void> updateChatFolder(String chatId, String? folder) async {
+    final db = await database;
+    await db.update(
+      AppConstants.tableNameChats,
+      {'folder': folder},
+      where: 'id = ?',
+      whereArgs: [chatId],
+    );
+  }
+
+  Future<List<String>> getFolders() async {
+    final db = await database;
+    final results = await db.rawQuery('''
+      SELECT DISTINCT folder FROM ${AppConstants.tableNameChats} 
+      WHERE folder IS NOT NULL AND folder != ''
+      ORDER BY folder
+    ''');
+    return results.map((r) => r['folder'] as String).toList();
   }
 
   Future<void> togglePinChat(String id, bool isPinned) async {
@@ -294,5 +323,28 @@ class DatabaseService {
       where: 'chat_id = ? AND timestamp > ?',
       whereArgs: [chatId, afterTimestamp.toIso8601String()],
     );
+  }
+
+  // Search across all messages
+  Future<List<Map<String, dynamic>>> searchMessages(String query) async {
+    if (query.trim().isEmpty) return [];
+    
+    final db = await database;
+    final results = await db.rawQuery('''
+      SELECT 
+        m.id as message_id,
+        m.chat_id,
+        m.content,
+        m.role,
+        m.timestamp,
+        c.title as chat_title
+      FROM ${AppConstants.tableNameMessages} m
+      JOIN ${AppConstants.tableNameChats} c ON m.chat_id = c.id
+      WHERE m.content LIKE ?
+      ORDER BY m.timestamp DESC
+      LIMIT 50
+    ''', ['%${query.trim()}%']);
+    
+    return results;
   }
 }
