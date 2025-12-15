@@ -332,13 +332,6 @@ class _LocalModelsScreenState extends State<LocalModelsScreen> {
       appBar: AppBar(
         title: const Text('Local Models'),
         backgroundColor: theme.colorScheme.surface,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _loadModels,
-            tooltip: 'Refresh',
-          ),
-        ],
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())

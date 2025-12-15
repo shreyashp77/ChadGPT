@@ -33,6 +33,9 @@ class _SetupWizardScreenState extends State<SetupWizardScreen> {
   final TextEditingController _braveApiKeyController = TextEditingController();
   final TextEditingController _perplexityApiKeyController = TextEditingController();
 
+  // Status State
+  String? _connectionStatus;
+
   @override
   void dispose() {
     _pageController.dispose();
@@ -106,9 +109,10 @@ class _SetupWizardScreenState extends State<SetupWizardScreen> {
     if (_currentPage == 1) {
       if (_selectedApiProvider == ApiProvider.lmStudio) {
         return _lmStudioUrlController.text.isNotEmpty;
-      } else {
+      } else if (_selectedApiProvider == ApiProvider.openRouter) {
         return _openRouterKeyController.text.isNotEmpty;
       }
+      return true; // Local model needs no config
     }
     // ComfyUI (Page 2) and Search (Page 3) are optional/have defaults
     return true; 
@@ -175,15 +179,7 @@ class _SetupWizardScreenState extends State<SetupWizardScreen> {
                       controller.text = url;
                       setState(() {});
                       Navigator.pop(ctx);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: const Text('Connected', textAlign: TextAlign.center),
-                          behavior: SnackBarBehavior.floating,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-                          width: 120,
-                          backgroundColor: Colors.green,
-                        ),
-                      );
+                      _showConnectedStatus();
                     },
                     child: Padding(
                       padding: const EdgeInsets.symmetric(vertical: 8),
@@ -210,6 +206,13 @@ class _SetupWizardScreenState extends State<SetupWizardScreen> {
         },
       ),
     );
+  }
+
+  void _showConnectedStatus() {
+    setState(() => _connectionStatus = 'Connected');
+    Future.delayed(const Duration(seconds: 2), () {
+      if (mounted) setState(() => _connectionStatus = null);
+    });
   }
 
   @override
@@ -252,6 +255,31 @@ class _SetupWizardScreenState extends State<SetupWizardScreen> {
           else
             const SizedBox.shrink(),
           
+          if (_connectionStatus != null)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.green.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: Colors.green),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.check, size: 16, color: Colors.green),
+                  const SizedBox(width: 8),
+                  Text(
+                    _connectionStatus!,
+                    style: const TextStyle(
+                      color: Colors.green,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
           ElevatedButton(
             onPressed: _canProceed() ? _nextPage : null,
             child: Text(_currentPage == 3 ? 'Finish' : 'Next'),
@@ -274,7 +302,7 @@ class _SetupWizardScreenState extends State<SetupWizardScreen> {
           
           _buildSelectionCard(
             title: 'LM Studio',
-            description: 'Connect to a local LM Studio server running on this machine or network.',
+            description: 'Connect to a local LM Studio server running on a server on the network.',
             isSelected: _selectedApiProvider == ApiProvider.lmStudio,
             onTap: () => setState(() => _selectedApiProvider = ApiProvider.lmStudio),
             icon: Icons.computer,
@@ -286,6 +314,14 @@ class _SetupWizardScreenState extends State<SetupWizardScreen> {
             isSelected: _selectedApiProvider == ApiProvider.openRouter,
             onTap: () => setState(() => _selectedApiProvider = ApiProvider.openRouter),
             icon: Icons.cloud,
+          ),
+          const SizedBox(height: 16),
+          _buildSelectionCard(
+            title: 'On-Device',
+            description: 'Run models locally on your device. Privacy focused, no internet required.',
+            isSelected: _selectedApiProvider == ApiProvider.localModel,
+            onTap: () => setState(() => _selectedApiProvider = ApiProvider.localModel),
+            icon: Icons.smartphone,
           ),
         ],
       ),
@@ -337,16 +373,37 @@ class _SetupWizardScreenState extends State<SetupWizardScreen> {
 
   Widget _buildProviderConfigPage() {
     final isLmStudio = _selectedApiProvider == ApiProvider.lmStudio;
+    final isLocalModel = _selectedApiProvider == ApiProvider.localModel;
+    
     return Padding(
       padding: const EdgeInsets.all(24.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(isLmStudio ? 'Configure LM Studio' : 'Configure OpenRouter', 
+          Text(isLmStudio ? 'Configure LM Studio' : isLocalModel ? 'On-Device Setup' : 'Configure OpenRouter', 
                style: Theme.of(context).textTheme.headlineSmall),
           const SizedBox(height: 24),
           
-          if (isLmStudio) ...[
+          if (isLocalModel) ...[
+             Center(
+               child: Column(
+                 children: [
+                   Icon(Icons.check_circle_outline, size: 64, color: Theme.of(context).colorScheme.primary),
+                   const SizedBox(height: 16),
+                   const Text(
+                     'No configuration needed!', 
+                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)
+                   ),
+                   const SizedBox(height: 8),
+                   const Text(
+                     'You can download and manage models from the settings menu after setup is complete.',
+                     textAlign: TextAlign.center,
+                     style: TextStyle(color: Colors.grey),
+                   ),
+                 ],
+               ),
+             ),
+          ] else if (isLmStudio) ...[
             TextField(
               controller: _lmStudioUrlController,
               decoration: const InputDecoration(
