@@ -6,6 +6,7 @@ import 'utils/theme.dart';
 import 'screens/home_screen.dart'; // Will create effectively
 import 'screens/settings_screen.dart'; // Will create effectively
 import 'screens/chat_screen.dart';
+import 'screens/local_models_screen.dart';
 import 'services/notification_service.dart';
 import 'screens/setup_wizard_screen.dart';
 
@@ -55,6 +56,7 @@ class ChadGPTApp extends StatelessWidget {
                     : ChatScreen(),
             routes: {
               '/settings': (context) => const SettingsScreen(),
+              '/local-models': (context) => const LocalModelsScreen(),
             },
           );
         },

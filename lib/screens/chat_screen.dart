@@ -16,6 +16,9 @@ import '../widgets/create_persona_dialog.dart';
 import '../widgets/voice_mode_overlay.dart';
 import '../widgets/typing_indicator.dart';
 import '../widgets/media_history_sheet.dart';
+import '../services/local_model_service.dart';
+import '../services/database_service.dart';
+import '../models/local_model.dart';
 
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
@@ -532,6 +535,19 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
 
+  /// Get the label for the model selector button
+  /// Shows local model name when using on-device provider
+  String _getModelSelectorLabel(SettingsProvider settingsProvider) {
+    if (settingsProvider.settings.apiProvider == ApiProvider.localModel) {
+      final localModelService = LocalModelService();
+      if (localModelService.isModelLoaded && localModelService.loadedModel != null) {
+        return localModelService.loadedModel!.name;
+      } else {
+        return 'No Local Model';
+      }
+    }
+    return settingsProvider.getModelDisplayName(settingsProvider.settings.selectedModelId ?? '');
+  }
 
   void _showAttachmentOptions() async {
       final settingsProvider = context.read<SettingsProvider>();
@@ -584,7 +600,7 @@ class _ChatScreenState extends State<ChatScreen> {
                                        _buildFloatingOption(
                                            context,
                                            icon: Icons.auto_awesome,
-                                           label: settingsProvider.getModelDisplayName(settingsProvider.settings.selectedModelId ?? ''),
+                                           label: _getModelSelectorLabel(settingsProvider),
                                            bgColor: Theme.of(context).colorScheme.primary,
                                            iconColor: Colors.white,
                                            onTap: () {
@@ -757,6 +773,8 @@ class _ChatScreenState extends State<ChatScreen> {
   void _showGrokModelSelector(BuildContext outerContext) {
       final settings = this.context.read<SettingsProvider>();
       final currentModel = settings.settings.selectedModelId;
+      final isLocalProvider = settings.settings.apiProvider == ApiProvider.localModel;
+      final localModelService = LocalModelService();
       
       showModalBottomSheet(
           context: this.context,
@@ -782,52 +800,177 @@ class _ChatScreenState extends State<ChatScreen> {
                             children: [
                                 Row(
                                     children: [
-                                        Icon(Icons.auto_awesome, color: Theme.of(ctx).colorScheme.onSurface, size: 20),
+                                        Icon(isLocalProvider ? Icons.smartphone : Icons.auto_awesome, color: Theme.of(ctx).colorScheme.onSurface, size: 20),
                                         const SizedBox(width: 8),
-                                        Text('Select Model', style: TextStyle(color: Theme.of(ctx).colorScheme.onSurface, fontSize: 18, fontWeight: FontWeight.bold)),
+                                        Text(isLocalProvider ? 'Local Models' : 'Select Model', style: TextStyle(color: Theme.of(ctx).colorScheme.onSurface, fontSize: 18, fontWeight: FontWeight.bold)),
                                     ],
                                 ),
-                                IconButton(icon: Icon(Icons.refresh, color: Theme.of(ctx).colorScheme.onSurface.withValues(alpha: 0.7)), onPressed: () {
-                                    settings.fetchModels();
-                                    Navigator.pop(ctx);
-                                    _showGrokModelSelector(this.context); 
-                                }),
+                                if (!isLocalProvider)
+                                  IconButton(icon: Icon(Icons.refresh, color: Theme.of(ctx).colorScheme.onSurface.withValues(alpha: 0.7)), onPressed: () {
+                                      settings.fetchModels();
+                                      Navigator.pop(ctx);
+                                      _showGrokModelSelector(this.context); 
+                                  }),
                             ],
                         ),
                       ),
                       Divider(color: Theme.of(ctx).colorScheme.onSurface.withValues(alpha: 0.1), height: 1),
-                      ConstrainedBox(
-                          constraints: BoxConstraints(maxHeight: MediaQuery.of(ctx).size.height * 0.4),
-                          child: ListView.builder(
-                              shrinkWrap: true,
-                              padding: const EdgeInsets.symmetric(vertical: 8),
-                              itemCount: settings.availableModels.length,
-                              itemBuilder: (listCtx, index) {
-                                  final modelId = settings.availableModels[index];
-                                  final isSelected = modelId == currentModel;
-                                  final displayName = settings.getModelDisplayName(modelId);
-                                  
-                                  return ListTile(
-                                      title: Text(displayName, style: TextStyle(color: isSelected ? Theme.of(listCtx).colorScheme.primary : Theme.of(listCtx).colorScheme.onSurface.withValues(alpha: 0.7), fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
-                                      subtitle: displayName != modelId.split('/').last ? Text(modelId.split('/').last, style: TextStyle(color: Theme.of(listCtx).colorScheme.onSurface.withValues(alpha: 0.3), fontSize: 10)) : null,
-                                      leading: isSelected ? Icon(Icons.check_circle, color: Theme.of(listCtx).colorScheme.primary) : Icon(Icons.circle_outlined, color: Theme.of(listCtx).colorScheme.onSurface.withValues(alpha: 0.3)),
-                                      trailing: IconButton(
-                                          icon: Icon(Icons.edit, size: 16, color: Theme.of(listCtx).colorScheme.onSurface.withValues(alpha: 0.3)),
-                                          onPressed: () => _showRenameDialog(this.context, modelId, displayName),
-                                      ),
-                                      onTap: () {
-                                          settings.updateSettings(selectedModelId: modelId);
-                                          Navigator.pop(ctx);
-                                      },
-                                  );
-                              },
-                          ),
-                      ),
+                      // Show local models or cloud models based on provider
+                      if (isLocalProvider)
+                        _buildLocalModelsList(ctx, localModelService)
+                      else
+                        _buildCloudModelsList(ctx, settings, currentModel),
                       const SizedBox(height: 8),
                   ],
               ),
           ),
       );
+  }
+  
+  Widget _buildLocalModelsList(BuildContext ctx, LocalModelService localModelService) {
+    return FutureBuilder<List<LocalModel>>(
+      future: _getDownloadedLocalModels(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Padding(
+            padding: EdgeInsets.all(32),
+            child: CircularProgressIndicator(),
+          );
+        }
+        
+        final models = snapshot.data ?? [];
+        final loadedModelId = localModelService.loadedModel?.id;
+        
+        if (models.isEmpty) {
+          return Padding(
+            padding: const EdgeInsets.all(32),
+            child: Column(
+              children: [
+                Icon(Icons.download_outlined, size: 48, color: Theme.of(ctx).colorScheme.onSurface.withValues(alpha: 0.3)),
+                const SizedBox(height: 16),
+                Text(
+                  'No models downloaded',
+                  style: TextStyle(color: Theme.of(ctx).colorScheme.onSurface.withValues(alpha: 0.5)),
+                ),
+                const SizedBox(height: 8),
+                TextButton(
+                  onPressed: () {
+                    Navigator.pop(ctx);
+                    Navigator.pushNamed(this.context, '/local-models');
+                  },
+                  child: const Text('Download Models'),
+                ),
+              ],
+            ),
+          );
+        }
+        
+        return ConstrainedBox(
+          constraints: BoxConstraints(maxHeight: MediaQuery.of(ctx).size.height * 0.4),
+          child: ListView.builder(
+            shrinkWrap: true,
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            itemCount: models.length,
+            itemBuilder: (listCtx, index) {
+              final model = models[index];
+              final isLoaded = model.id == loadedModelId;
+              
+              return ListTile(
+                title: Text(
+                  model.name,
+                  style: TextStyle(
+                    color: isLoaded ? Theme.of(listCtx).colorScheme.primary : Theme.of(listCtx).colorScheme.onSurface.withValues(alpha: 0.7),
+                    fontWeight: isLoaded ? FontWeight.bold : FontWeight.normal,
+                  ),
+                ),
+                subtitle: Text(
+                  '${model.quantization ?? ''} • ${model.sizeString}',
+                  style: TextStyle(color: Theme.of(listCtx).colorScheme.onSurface.withValues(alpha: 0.3), fontSize: 10),
+                ),
+                leading: isLoaded 
+                  ? Icon(Icons.check_circle, color: Theme.of(listCtx).colorScheme.primary) 
+                  : Icon(Icons.circle_outlined, color: Theme.of(listCtx).colorScheme.onSurface.withValues(alpha: 0.3)),
+                trailing: isLoaded
+                  ? TextButton.icon(
+                      icon: const Icon(Icons.eject, size: 16, color: Colors.orange),
+                      label: const Text('Unload', style: TextStyle(color: Colors.orange, fontSize: 12)),
+                      onPressed: () async {
+                        await localModelService.unloadModel();
+                        Navigator.pop(ctx);
+                        if (this.mounted) {
+                          ScaffoldMessenger.of(this.context).showSnackBar(
+                            const SnackBar(content: Text('Model unloaded'), backgroundColor: Colors.orange),
+                          );
+                        }
+                      },
+                    )
+                  : null,
+                onTap: () async {
+                  Navigator.pop(ctx);
+                  if (!isLoaded) {
+                    // Load the model
+                    ScaffoldMessenger.of(this.context).showSnackBar(
+                      SnackBar(content: Text('Loading ${model.name}...')),
+                    );
+                    try {
+                      await localModelService.loadModel(model);
+                      if (mounted) {
+                        ScaffoldMessenger.of(this.context).showSnackBar(
+                          SnackBar(content: Text('${model.name} loaded!'), backgroundColor: Colors.green),
+                        );
+                      }
+                    } catch (e) {
+                      if (mounted) {
+                        ScaffoldMessenger.of(this.context).showSnackBar(
+                          SnackBar(content: Text('Failed to load: $e'), backgroundColor: Colors.red),
+                        );
+                      }
+                    }
+                  }
+                },
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
+  
+  Future<List<LocalModel>> _getDownloadedLocalModels() async {
+    final dbService = DatabaseService();
+    final models = await dbService.getLocalModels();
+    // Return only downloaded models (not downloading or error)
+    return models.where((m) => m.status == LocalModelStatus.downloaded || m.status == LocalModelStatus.loaded).toList();
+  }
+  
+  Widget _buildCloudModelsList(BuildContext ctx, SettingsProvider settings, String? currentModel) {
+    return ConstrainedBox(
+      constraints: BoxConstraints(maxHeight: MediaQuery.of(ctx).size.height * 0.4),
+      child: ListView.builder(
+        shrinkWrap: true,
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        itemCount: settings.availableModels.length,
+        itemBuilder: (listCtx, index) {
+          final modelId = settings.availableModels[index];
+          final isSelected = modelId == currentModel;
+          final displayName = settings.getModelDisplayName(modelId);
+          
+          return ListTile(
+            title: Text(displayName, style: TextStyle(color: isSelected ? Theme.of(listCtx).colorScheme.primary : Theme.of(listCtx).colorScheme.onSurface.withValues(alpha: 0.7), fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
+            subtitle: displayName != modelId.split('/').last ? Text(modelId.split('/').last, style: TextStyle(color: Theme.of(listCtx).colorScheme.onSurface.withValues(alpha: 0.3), fontSize: 10)) : null,
+            leading: isSelected ? Icon(Icons.check_circle, color: Theme.of(listCtx).colorScheme.primary) : Icon(Icons.circle_outlined, color: Theme.of(listCtx).colorScheme.onSurface.withValues(alpha: 0.3)),
+            trailing: IconButton(
+              icon: Icon(Icons.edit, size: 16, color: Theme.of(listCtx).colorScheme.onSurface.withValues(alpha: 0.3)),
+              onPressed: () => _showRenameDialog(this.context, modelId, displayName),
+            ),
+            onTap: () {
+              settings.updateSettings(selectedModelId: modelId);
+              Navigator.pop(ctx);
+            },
+          );
+        },
+      ),
+    );
   }
 
   void _showPersonaSelector(BuildContext context) {

@@ -16,7 +16,8 @@ import 'settings_provider.dart';
 import '../models/persona.dart';
 import '../services/tts_service.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
-
+import '../services/local_model_service.dart';
+import '../models/app_settings.dart';  // For ApiProvider enum
 class ChatProvider with ChangeNotifier, WidgetsBindingObserver {
   final DatabaseService _dbService = DatabaseService();
   final SettingsProvider _settingsProvider;
@@ -500,6 +501,12 @@ class ChatProvider with ChangeNotifier, WidgetsBindingObserver {
   void stopGeneration() {
     _abortGeneration = true;
     _activeGenerations.clear();
+    
+    // Also stop local model generation if using on-device provider
+    if (_settingsProvider.settings.apiProvider == ApiProvider.localModel) {
+      LocalModelService().stopGeneration();
+    }
+    
     notifyListeners();
   }
 
@@ -569,14 +576,19 @@ class ChatProvider with ChangeNotifier, WidgetsBindingObserver {
 
     print('DEBUG: sendMessage called. Content: $content');
     
-    // 3. Validation
-    if (_settingsProvider.settings.selectedModelId == null) {
+    // 3. Validation - For local models, check LocalModelService instead of selectedModelId
+    final isLocalModel = _settingsProvider.settings.apiProvider == ApiProvider.localModel;
+    final hasLocalModelLoaded = isLocalModel && LocalModelService().isModelLoaded;
+    
+    if (!hasLocalModelLoaded && _settingsProvider.settings.selectedModelId == null) {
          // Add error system message instead of throwing
          final errorMsg = Message(
             id: const Uuid().v4(),
             chatId: _currentChat!.id,
             role: MessageRole.system,
-            content: "Error: No model selected. Please check your settings and connection.",
+            content: isLocalModel 
+                ? "Error: No local model loaded. Go to Settings > On-Device > Manage Local Models to download and load a model."
+                : "Error: No model selected. Please check your settings and connection.",
             timestamp: DateTime.now(),
          );
          _currentChat!.messages.add(errorMsg);
@@ -1042,6 +1054,9 @@ class ChatProvider with ChangeNotifier, WidgetsBindingObserver {
 
     print('DEBUG: _generateAssistantResponse started');
     try {
+      // Check if using local model provider
+      final isLocalModel = _settingsProvider.settings.apiProvider == ApiProvider.localModel;
+      
       // Check for web search
       List<String>? searchResults;
       if (useWebSearch) {
@@ -1051,8 +1066,13 @@ class ChatProvider with ChangeNotifier, WidgetsBindingObserver {
       if (_abortGeneration) return;
 
       print('DEBUG: Starting stream');
+      // For local models, modelId is not used (model is managed by LocalModelService)
+      final effectiveModelId = isLocalModel 
+          ? 'local' 
+          : _settingsProvider.settings.selectedModelId!;
+      
       final stream = _settingsProvider.apiService.chatCompletionStream(
-        modelId: _settingsProvider.settings.selectedModelId!,
+        modelId: effectiveModelId,
         // Pass all current messages from the TARGET chat
         messages: targetChat.messages, 
         searchResults: searchResults,

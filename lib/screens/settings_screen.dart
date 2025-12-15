@@ -143,6 +143,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget _buildProviderCard(BuildContext context, SettingsProvider settingsProvider) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final settings = settingsProvider.settings;
+    final isLocalModel = settings.apiProvider == ApiProvider.localModel;
     
     return _buildCard(
       context: context,
@@ -171,6 +172,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   label: Text('OpenRouter'),
                   icon: Icon(Icons.cloud),
                 ),
+                ButtonSegment<ApiProvider>(
+                  value: ApiProvider.localModel,
+                  label: Text('On-Device'),
+                  icon: Icon(Icons.phone_android),
+                ),
               ],
               selected: {settings.apiProvider},
               onSelectionChanged: (Set<ApiProvider> newSelection) {
@@ -191,6 +197,63 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 }),
               ),
             ),
+            // Show manage models button when On-Device is selected
+            if (isLocalModel) ...[
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3),
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.info_outline,
+                          size: 16,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Models run entirely on your phone. No internet required!',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: isDark ? Colors.white70 : Colors.black54,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: () {
+                          Navigator.pushNamed(context, '/local-models');
+                        },
+                        icon: const Icon(Icons.download, size: 18),
+                        label: const Text('Manage Local Models'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Theme.of(context).colorScheme.primary,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ],
         ),
       ),
@@ -200,10 +263,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget _buildConnectionCard(BuildContext context, SettingsProvider settingsProvider) {
     final settings = settingsProvider.settings;
     final isOpenRouter = settings.apiProvider == ApiProvider.openRouter;
+    final isLocalModel = settings.apiProvider == ApiProvider.localModel;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     
     // LM Studio Status
-    final isLmConnected = !isOpenRouter && settingsProvider.error == null && settingsProvider.availableModels.isNotEmpty;
+    final isLmConnected = settings.apiProvider == ApiProvider.lmStudio && settingsProvider.error == null && settingsProvider.availableModels.isNotEmpty;
     final lmStatusDot = _buildStatusDot(isLmConnected);
 
     // OpenRouter Status
@@ -225,7 +289,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (!isOpenRouter) ...[
+            if (settings.apiProvider == ApiProvider.lmStudio) ...[
               _buildInputField(
                   context, 
                   'LM Studio URL', 

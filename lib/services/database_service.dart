@@ -2,6 +2,7 @@ import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import '../models/message.dart';
 import '../models/chat_session.dart';
+import '../models/local_model.dart';
 import '../utils/constants.dart';
 
 class DatabaseService {
@@ -24,7 +25,7 @@ class DatabaseService {
     String path = join(await getDatabasesPath(), AppConstants.dbName);
     return await openDatabase(
       path,
-      version: 9, // Added folder support
+      version: 10, // Added local_models table
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -61,6 +62,24 @@ class DatabaseService {
         is_truncated INTEGER DEFAULT 0,
         has_error INTEGER DEFAULT 0,
         FOREIGN KEY (chat_id) REFERENCES ${AppConstants.tableNameChats} (id) ON DELETE CASCADE
+      )
+    ''');
+    
+    // Local models table for on-device inference
+    await db.execute('''
+      CREATE TABLE local_models (
+        id TEXT PRIMARY KEY,
+        repo_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        filename TEXT NOT NULL,
+        size_bytes INTEGER NOT NULL,
+        download_url TEXT NOT NULL,
+        local_path TEXT,
+        status TEXT NOT NULL,
+        parameters INTEGER,
+        quantization TEXT,
+        description TEXT,
+        created_at TEXT NOT NULL
       )
     ''');
   }
@@ -144,6 +163,25 @@ class DatabaseService {
        if (!columnNames.contains('folder')) {
            await db.execute('ALTER TABLE ${AppConstants.tableNameChats} ADD COLUMN folder TEXT');
        }
+    }
+    if (oldVersion < 10) {
+       // Add local_models table for on-device inference
+       await db.execute('''
+         CREATE TABLE IF NOT EXISTS local_models (
+           id TEXT PRIMARY KEY,
+           repo_id TEXT NOT NULL,
+           name TEXT NOT NULL,
+           filename TEXT NOT NULL,
+           size_bytes INTEGER NOT NULL,
+           download_url TEXT NOT NULL,
+           local_path TEXT,
+           status TEXT NOT NULL,
+           parameters INTEGER,
+           quantization TEXT,
+           description TEXT,
+           created_at TEXT NOT NULL
+         )
+       ''');
     }
   }
 
@@ -347,5 +385,68 @@ class DatabaseService {
     ''', ['%${query.trim()}%']);
     
     return results;
+  }
+
+  // Local Model Operations
+  Future<List<LocalModel>> getLocalModels() async {
+    final db = await database;
+    final List<Map<String, dynamic>> maps = await db.query(
+      'local_models',
+      orderBy: 'created_at DESC',
+    );
+    return List.generate(maps.length, (i) => LocalModel.fromMap(maps[i]));
+  }
+
+  Future<LocalModel?> getLocalModel(String id) async {
+    final db = await database;
+    final List<Map<String, dynamic>> maps = await db.query(
+      'local_models',
+      where: 'id = ?',
+      whereArgs: [id],
+      limit: 1,
+    );
+    if (maps.isEmpty) return null;
+    return LocalModel.fromMap(maps.first);
+  }
+
+  Future<void> insertLocalModel(LocalModel model) async {
+    final db = await database;
+    final map = model.toMap();
+    map['created_at'] = DateTime.now().toIso8601String();
+    await db.insert(
+      'local_models',
+      map,
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<void> updateLocalModel(LocalModel model) async {
+    final db = await database;
+    await db.update(
+      'local_models',
+      model.toMap(),
+      where: 'id = ?',
+      whereArgs: [model.id],
+    );
+  }
+
+  Future<void> deleteLocalModel(String id) async {
+    final db = await database;
+    await db.delete(
+      'local_models',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  Future<List<LocalModel>> getDownloadedModels() async {
+    final db = await database;
+    final List<Map<String, dynamic>> maps = await db.query(
+      'local_models',
+      where: 'status = ?',
+      whereArgs: [LocalModelStatus.downloaded.name],
+      orderBy: 'created_at DESC',
+    );
+    return List.generate(maps.length, (i) => LocalModel.fromMap(maps[i]));
   }
 }

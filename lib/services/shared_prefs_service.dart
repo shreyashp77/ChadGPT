@@ -25,6 +25,11 @@ class SharedPrefsService {
   // ComfyUI Keys
   static const String keyComfyuiUrl = 'comfyui_url';
 
+  // Local Model Keys (On-Device Inference)
+  static const String keySelectedLocalModelId = 'selected_local_model_id';
+  static const String keyLocalModelGpuLayers = 'local_model_gpu_layers';
+  static const String keyLocalModelContextSize = 'local_model_context_size';
+
   // First Run Key
   static const String keyIsFirstRun = 'is_first_run';
 
@@ -49,6 +54,8 @@ class SharedPrefsService {
       final providerStr = prefs.getString(keyApiProvider);
       if (providerStr == 'openRouter') {
         apiProvider = ApiProvider.openRouter;
+      } else if (providerStr == 'localModel') {
+        apiProvider = ApiProvider.localModel;
       }
     }
 
@@ -78,6 +85,9 @@ class SharedPrefsService {
       googleCx: prefs.getString(keyGoogleCx),
       perplexityApiKey: prefs.getString(keyPerplexityApiKey),
       comfyuiUrl: prefs.getString(keyComfyuiUrl),
+      selectedLocalModelId: prefs.getString(keySelectedLocalModelId),
+      localModelGpuLayers: prefs.getInt(keyLocalModelGpuLayers) ?? 0,
+      localModelContextSize: prefs.getInt(keyLocalModelContextSize) ?? 2048,
     );
   }
 
@@ -104,7 +114,13 @@ class SharedPrefsService {
     await prefs.setString(keyModelAliases, json.encode(settings.modelAliases));
 
     // Save API provider
-    await prefs.setString(keyApiProvider, settings.apiProvider == ApiProvider.openRouter ? 'openRouter' : 'lmStudio');
+    String providerStr = 'lmStudio';
+    if (settings.apiProvider == ApiProvider.openRouter) {
+      providerStr = 'openRouter';
+    } else if (settings.apiProvider == ApiProvider.localModel) {
+      providerStr = 'localModel';
+    }
+    await prefs.setString(keyApiProvider, providerStr);
     
     // Save OpenRouter API key
     if (settings.openRouterApiKey != null && settings.openRouterApiKey!.isNotEmpty) {
@@ -152,6 +168,15 @@ class SharedPrefsService {
     } else {
       await prefs.remove(keyComfyuiUrl);
     }
+
+    // Local Model Settings
+    if (settings.selectedLocalModelId != null && settings.selectedLocalModelId!.isNotEmpty) {
+      await prefs.setString(keySelectedLocalModelId, settings.selectedLocalModelId!);
+    } else {
+      await prefs.remove(keySelectedLocalModelId);
+    }
+    await prefs.setInt(keyLocalModelGpuLayers, settings.localModelGpuLayers);
+    await prefs.setInt(keyLocalModelContextSize, settings.localModelContextSize);
   }
 
 

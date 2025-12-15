@@ -1,4 +1,4 @@
-enum ApiProvider { lmStudio, openRouter }
+enum ApiProvider { lmStudio, openRouter, localModel }
 enum SearchProvider { searxng, brave, bing, google, perplexity, none }
 
 class AppSettings {
@@ -22,6 +22,11 @@ class AppSettings {
   
   // ComfyUI Image Generation
   String? comfyuiUrl;
+  
+  // Local Model Settings (On-Device Inference)
+  String? selectedLocalModelId;
+  int localModelGpuLayers;
+  int localModelContextSize;
 
   AppSettings({
     required this.lmStudioUrl,
@@ -40,6 +45,9 @@ class AppSettings {
     this.googleCx,
     this.perplexityApiKey,
     this.comfyuiUrl,
+    this.selectedLocalModelId,
+    this.localModelGpuLayers = 0,
+    this.localModelContextSize = 2048,
   });
 
   // Create a copyWith method
@@ -60,6 +68,9 @@ class AppSettings {
     String? googleCx,
     String? perplexityApiKey,
     String? comfyuiUrl,
+    String? selectedLocalModelId,
+    int? localModelGpuLayers,
+    int? localModelContextSize,
   }) {
     return AppSettings(
       lmStudioUrl: lmStudioUrl ?? this.lmStudioUrl,
@@ -78,6 +89,9 @@ class AppSettings {
       googleCx: googleCx ?? this.googleCx,
       perplexityApiKey: perplexityApiKey ?? this.perplexityApiKey,
       comfyuiUrl: comfyuiUrl ?? this.comfyuiUrl,
+      selectedLocalModelId: selectedLocalModelId ?? this.selectedLocalModelId,
+      localModelGpuLayers: localModelGpuLayers ?? this.localModelGpuLayers,
+      localModelContextSize: localModelContextSize ?? this.localModelContextSize,
     );
   }
 }

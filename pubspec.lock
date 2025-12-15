@@ -456,6 +456,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "6.0.0"
+  llama_flutter_android:
+    dependency: "direct main"
+    description:
+      name: llama_flutter_android
+      sha256: acf6f837a5c70d34dcff496308efad64e237baf6c7fa0f27a4e039476c08188a
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.1.1"
   markdown:
     dependency: "direct main"
     description:

@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import '../models/app_settings.dart';
 import '../models/message.dart';
 import '../models/stream_chunk.dart';
+import 'local_model_service.dart';
 
 class ApiService {
   final AppSettings settings;
@@ -298,6 +299,12 @@ class ApiService {
         searchResults: searchResults,
         systemPrompt: systemPrompt,
       );
+    } else if (settings.apiProvider == ApiProvider.localModel) {
+      yield* _localModelChatStream(
+        messages: messages,
+        searchResults: searchResults,
+        systemPrompt: systemPrompt,
+      );
     } else {
       yield* _lmStudioChatStream(
         modelId: modelId,
@@ -305,6 +312,66 @@ class ApiService {
         searchResults: searchResults,
         systemPrompt: systemPrompt,
       );
+    }
+  }
+
+  // Local Model (On-Device) - Chat Completion Stream using flutter_llama
+  Stream<StreamChunk> _localModelChatStream({
+    required List<Message> messages,
+    List<String>? searchResults,
+    String? systemPrompt,
+  }) async* {
+    final localModelService = LocalModelService();
+    
+    if (!localModelService.isModelLoaded) {
+      yield StreamChunk(content: "Error: No local model loaded. Go to Settings > On-Device > Manage Local Models to download and load a model.");
+      yield StreamChunk(isDone: true);
+      return;
+    }
+    
+    try {
+      // Build system prompt
+      String systemContent = systemPrompt ?? "You are a helpful AI assistant.";
+      if (searchResults != null && searchResults.isNotEmpty) {
+        systemContent += "\n\nUse the following search results to answer the user's question:\n${searchResults.join('\n\n')}";
+      }
+      
+      // Convert messages to simple format for prompt building
+      final messageList = <Map<String, String>>[];
+      
+      // Use last 10 messages for context (local models have limited context)
+      var contextMessages = messages;
+      if (messages.length > 10) {
+        contextMessages = messages.sublist(messages.length - 10);
+      }
+      
+      for (var msg in contextMessages) {
+        if (msg.role != MessageRole.system) {
+          messageList.add({
+            'role': msg.role.toString().split('.').last,
+            'content': msg.content,
+          });
+        }
+      }
+      
+      // Build the prompt using ChatML format
+      final prompt = localModelService.buildChatPrompt(
+        messageList,
+        systemPrompt: systemContent,
+      );
+      
+      // Stream tokens from local model
+      await for (final token in localModelService.generateStream(
+        prompt,
+        maxTokens: settings.localModelContextSize ~/ 2, // Leave room for context
+      )) {
+        yield StreamChunk(content: token);
+      }
+      
+      yield StreamChunk(isDone: true);
+    } catch (e) {
+      yield StreamChunk(content: "Error: $e");
+      yield StreamChunk(isDone: true);
     }
   }
 
@@ -561,7 +628,10 @@ class ApiService {
 
   // Generate Chat Title - Routes to appropriate provider
   Future<String> generateTitle(String content, String modelId) async {
-    if (settings.apiProvider == ApiProvider.openRouter) {
+    // For local models, use simple fallback (generating titles would be slow)
+    if (settings.apiProvider == ApiProvider.localModel) {
+      return content.length > 30 ? '${content.substring(0, 30)}...' : content;
+    } else if (settings.apiProvider == ApiProvider.openRouter) {
       return _generateTitleOpenRouter(content, modelId);
     } else {
       return _generateTitleLmStudio(content, modelId);
@@ -633,7 +703,10 @@ class ApiService {
 
   // Enhance System Prompt - Routes to appropriate provider
   Future<String> enhancePrompt(String name, String description, String currentPrompt, String modelId) async {
-    if (settings.apiProvider == ApiProvider.openRouter) {
+    // For local models, just return the current prompt (enhancement would be too slow)
+    if (settings.apiProvider == ApiProvider.localModel) {
+      return currentPrompt;
+    } else if (settings.apiProvider == ApiProvider.openRouter) {
       return _enhancePromptOpenRouter(name, description, currentPrompt, modelId);
     } else {
       return _enhancePromptLmStudio(name, description, currentPrompt, modelId);
