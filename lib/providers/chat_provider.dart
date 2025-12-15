@@ -567,6 +567,8 @@ class ChatProvider with ChangeNotifier, WidgetsBindingObserver {
       await _dbService.insertMessage(userMsg, false);
     }
 
+    print('DEBUG: sendMessage called. Content: $content');
+    
     // 3. Validation
     if (_settingsProvider.settings.selectedModelId == null) {
          // Add error system message instead of throwing
@@ -583,6 +585,7 @@ class ChatProvider with ChangeNotifier, WidgetsBindingObserver {
          return;
     }
 
+    print('DEBUG: Calling _generateAssistantResponse');
     // 4. Trigger Response (NON-BLOCKING)
     _generateAssistantResponse(content, useWebSearch: useWebSearch);
   }
@@ -1037,6 +1040,7 @@ class ChatProvider with ChangeNotifier, WidgetsBindingObserver {
     // Response content (declared here so it's accessible in catch block)
     String fullResponse = "";
 
+    print('DEBUG: _generateAssistantResponse started');
     try {
       // Check for web search
       List<String>? searchResults;
@@ -1046,6 +1050,7 @@ class ChatProvider with ChangeNotifier, WidgetsBindingObserver {
       
       if (_abortGeneration) return;
 
+      print('DEBUG: Starting stream');
       final stream = _settingsProvider.apiService.chatCompletionStream(
         modelId: _settingsProvider.settings.selectedModelId!,
         // Pass all current messages from the TARGET chat
@@ -1061,6 +1066,7 @@ class ChatProvider with ChangeNotifier, WidgetsBindingObserver {
       int lastHapticTime = 0; // Timestamp for throttling
 
       await for (final chunk in stream) {
+        print('DEBUG: Received chunk: ${chunk.content?.length}');
         if (_abortGeneration) break;
         
         // Handle content
@@ -1188,6 +1194,7 @@ class ChatProvider with ChangeNotifier, WidgetsBindingObserver {
       }
 
     } catch (e) {
+      print('DEBUG: _generateAssistantResponse error: $e');
       // If app is in background and we have partial content, treat as truncation not error
       final isConnectionError = e.toString().contains('Connection closed') || 
                                  e.toString().contains('ClientException');

@@ -39,7 +39,8 @@ class DatabaseService {
         updated_at TEXT,
         system_prompt TEXT,
         is_pinned INTEGER DEFAULT 0,
-        has_unread_messages INTEGER DEFAULT 0
+        has_unread_messages INTEGER DEFAULT 0,
+        folder TEXT
       )
     ''');
     
