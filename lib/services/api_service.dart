@@ -731,5 +731,171 @@ Return ONLY the improved system prompt. Do not add any conversational filler, ex
       throw Exception('Failed to enhance prompt: $e');
     }
   }
+  // Scan for LM Studio
+  static Future<List<String>> scanLmStudioNetwork({
+    void Function(String status)? onProgress,
+    void Function(String url)? onServerFound,
+  }) async {
+    final foundServers = <String>[];
+    const port = 1234; // LM Studio default port
+    const timeout = Duration(milliseconds: 800);
+    
+    final patterns = [
+      '192.168.1.',
+      '192.168.0.',
+      '10.0.0.',
+      '172.16.0.',
+    ];
+    
+    final localUrls = [
+      'http://localhost:$port',
+      'http://127.0.0.1:$port',
+      'http://10.0.2.2:$port', // Android Emulator
+    ];
+    
+    onProgress?.call('Checking localhost...');
+    for (var url in localUrls) {
+      try {
+        final response = await http.get(
+          Uri.parse('$url/v1/models'),
+        ).timeout(timeout);
+        if (response.statusCode == 200) {
+          foundServers.add(url);
+          onServerFound?.call(url);
+        }
+      } catch (_) {}
+    }
+    
+    // Scan network ranges
+    for (var pattern in patterns) {
+      onProgress?.call('Scanning $pattern*...');
+      
+      final futures = <Future<void>>[];
+      
+      for (var i = 1; i <= 254; i++) {
+        final ip = '$pattern$i';
+        final url = 'http://$ip:$port';
+        
+        futures.add((() async {
+          try {
+            final response = await http.get(
+              Uri.parse('$url/v1/models'),
+            ).timeout(timeout);
+            if (response.statusCode == 200) {
+              foundServers.add(url);
+              onServerFound?.call(url);
+            }
+          } catch (_) {}
+        })());
+      }
+      
+      final batchSize = 50;
+      for (var i = 0; i < futures.length; i += batchSize) {
+        final batch = futures.skip(i).take(batchSize).toList();
+        await Future.wait(batch);
+      }
+    }
+    
+    onProgress?.call('Scan complete');
+    return foundServers;
+  }
+
+  // Scan for SearXNG
+  static Future<List<String>> scanSearxngNetwork({
+    void Function(String status)? onProgress,
+    void Function(String url)? onServerFound,
+  }) async {
+    final foundServers = <String>[];
+    const ports = [8080, 8081]; 
+    const timeout = Duration(milliseconds: 2000); 
+    
+    // Get local subnets dynamically
+    final subnets = <String>{};
+    
+    try {
+      final interfaces = await NetworkInterface.list(
+        type: InternetAddressType.IPv4, 
+        includeLinkLocal: false,
+      );
+      for (var interface in interfaces) {
+        for (var addr in interface.addresses) {
+            if (!addr.isLoopback) {
+                final parts = addr.address.split('.');
+                if (parts.length == 4) {
+                    final subnet = '${parts[0]}.${parts[1]}.${parts[2]}.';
+                    subnets.add(subnet);
+                }
+            }
+        }
+      }
+    } catch (e) {
+      print("DEBUG: Error getting network interfaces: $e");
+    }
+
+    if (subnets.isEmpty) {
+        subnets.addAll([
+          '192.168.1.',
+          '192.168.0.',
+          '10.0.0.',
+          '172.16.0.',
+        ]);
+    }
+    
+    final localUrls = [
+      for (var port in ports) ...[
+        'http://localhost:$port', 
+        'http://127.0.0.1:$port',
+        'http://10.0.2.2:$port',
+        'http://10.0.3.2:$port',
+      ]
+    ];
+    
+    onProgress?.call('Checking localhost...');
+    for (var url in localUrls) {
+      try {
+        final response = await http.get(
+          Uri.parse('$url/search?q=test&format=json'),
+        ).timeout(timeout);
+        if (response.statusCode == 200) {
+          foundServers.add(url);
+          onServerFound?.call(url);
+        }
+      } catch (_) {}
+    }
+    
+    for (var subnet in subnets) {
+      onProgress?.call('Scanning $subnet*...');
+      
+      final futures = <Future<void>>[];
+      
+      for (var i = 1; i <= 254; i++) {
+        final ip = '$subnet$i';
+        
+        for (var port in ports) {
+             final url = 'http://$ip:$port';
+             futures.add((() async {
+              try {
+                final response = await http.get(
+                  Uri.parse('$url/search?q=test&format=json'),
+                ).timeout(timeout);
+                if (response.statusCode == 200) {
+                  foundServers.add(url);
+                  onServerFound?.call(url);
+                }
+              } catch (_) {}
+            })());
+        }
+      }
+      
+      final batchSize = 25;
+      for (var i = 0; i < futures.length; i += batchSize) {
+        final batch = futures.skip(i).take(batchSize).toList();
+        await Future.wait(batch);
+      }
+    }
+    
+    onProgress?.call('Scan complete');
+    return foundServers;
+  }
 }
 

@@ -24,6 +24,9 @@ class SettingsProvider with ChangeNotifier {
   bool _isSearxngConnected = false;
   bool _isOpenRouterConnected = false;
   bool _isComfyUiConnected = false;
+  
+  bool _isInitialized = false;
+  bool _isFirstRun = true;
 
   AppSettings get settings => _settings;
   List<String> get availableModels => _availableModels;
@@ -34,6 +37,9 @@ class SettingsProvider with ChangeNotifier {
   bool get isOpenRouterConnected => _isOpenRouterConnected;
   bool get isComfyUiConnected => _isComfyUiConnected;
   ApiService get apiService => _apiService;
+  
+  bool get isInitialized => _isInitialized;
+  bool get isFirstRun => _isFirstRun;
 
   SettingsProvider() {
     _loadSettings();
@@ -41,7 +47,18 @@ class SettingsProvider with ChangeNotifier {
 
   Future<void> _loadSettings() async {
     _settings = await _prefsService.getSettings();
+    _isFirstRun = await _prefsService.getIsFirstRun();
     _apiService = ApiService(_settings);
+    _isInitialized = true;
+    notifyListeners();
+    if (!_isFirstRun) {
+      fetchModels();
+    }
+  }
+
+  Future<void> completeSetup() async {
+    await _prefsService.setFirstRunCompleted();
+    _isFirstRun = false;
     notifyListeners();
     fetchModels();
   }

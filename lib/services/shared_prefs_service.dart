@@ -25,6 +25,9 @@ class SharedPrefsService {
   // ComfyUI Keys
   static const String keyComfyuiUrl = 'comfyui_url';
 
+  // First Run Key
+  static const String keyIsFirstRun = 'is_first_run';
+
   Future<AppSettings> getSettings() async {
     final prefs = await SharedPreferences.getInstance();
     
@@ -149,6 +152,25 @@ class SharedPrefsService {
     } else {
       await prefs.remove(keyComfyuiUrl);
     }
+  }
+
+
+  Future<bool> getIsFirstRun() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (prefs.containsKey(keyIsFirstRun)) {
+      return prefs.getBool(keyIsFirstRun)!;
+    }
+    // Migration: If we have existing settings, it's not a first run
+    if (prefs.containsKey(keyLmStudioUrl) || prefs.containsKey(keyOpenRouterApiKey)) {
+        await prefs.setBool(keyIsFirstRun, false);
+        return false;
+    }
+    return true;
+  }
+
+  Future<void> setFirstRunCompleted() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(keyIsFirstRun, false);
   }
 }
 

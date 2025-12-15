@@ -5,8 +5,9 @@ import 'providers/chat_provider.dart';
 import 'utils/theme.dart';
 import 'screens/home_screen.dart'; // Will create effectively
 import 'screens/settings_screen.dart'; // Will create effectively
-import 'screens/chat_screen.dart'; // Will create effectively
+import 'screens/chat_screen.dart';
 import 'services/notification_service.dart';
+import 'screens/setup_wizard_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -47,7 +48,11 @@ class ChadGPTApp extends StatelessWidget {
             themeMode: settings.settings.isDarkMode ? ThemeMode.dark : ThemeMode.light,
             theme: AppTheme.getLightTheme(seedColor),
             darkTheme: AppTheme.getDarkTheme(seedColor),
-            home: ChatScreen(),
+            home: !settings.isInitialized
+                ? const Scaffold(body: Center(child: CircularProgressIndicator()))
+                : settings.isFirstRun
+                    ? const SetupWizardScreen()
+                    : ChatScreen(),
             routes: {
               '/settings': (context) => const SettingsScreen(),
             },
