@@ -302,7 +302,7 @@ class _SetupWizardScreenState extends State<SetupWizardScreen> {
           
           _buildSelectionCard(
             title: 'LM Studio',
-            description: 'Connect to a local LM Studio server running on a server on the network.',
+            description: 'Connect to a local LM Studio server running on the network.',
             isSelected: _selectedApiProvider == ApiProvider.lmStudio,
             onTap: () => setState(() => _selectedApiProvider = ApiProvider.lmStudio),
             icon: Icons.computer,
