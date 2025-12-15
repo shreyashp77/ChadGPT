@@ -1106,7 +1106,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           child: Icon(Icons.info_outline, color: isDark ? Colors.white : Colors.black87),
         ),
         title: Text('Version', style: TextStyle(color: isDark ? Colors.white : Colors.black87, fontWeight: FontWeight.w500)),
-        trailing: Text('1.0.1', style: TextStyle(color: isDark ? Colors.white54 : Colors.black54)),
+        trailing: Text('1.0.1.1', style: TextStyle(color: isDark ? Colors.white54 : Colors.black54)),
       ),
     );
   }
