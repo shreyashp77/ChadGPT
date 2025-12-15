@@ -96,6 +96,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 const SizedBox(height: 8),
                 _buildAppearanceCard(context, settings, settingsProvider),
                 
+                const SizedBox(height: 24),
+                
+                _buildSectionHeader('Privacy & Security'),
+                const SizedBox(height: 8),
+                _buildPrivacyCard(context, settings, settingsProvider),
+                
+
+                const SizedBox(height: 24),
 
                  _buildSectionHeader('About'),
                  const SizedBox(height: 8),
@@ -713,6 +721,72 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ],
       ),
     );
+  }
+
+  Widget _buildPrivacyCard(BuildContext context, AppSettings settings, SettingsProvider settingsProvider) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : Colors.black87;
+    final subtitleColor = isDark ? Colors.white54 : Colors.black54;
+    final dividerColor = isDark ? Colors.white10 : Colors.black12;
+
+    return _buildCard(
+      context: context,
+      child: Column(
+        children: [
+          ListTile(
+            contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+            title: Text('Clear Chat History', style: TextStyle(color: textColor, fontWeight: FontWeight.w500)),
+            subtitle: Text('Delete all messages and chats', style: TextStyle(color: subtitleColor, fontSize: 13)),
+            trailing: const Icon(Icons.delete_outline, color: Colors.red),
+            onTap: () => _showClearConfirmation(context, settingsProvider, false),
+          ),
+          Divider(height: 1, color: dividerColor),
+          ListTile(
+               contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+               title: Text('Wipe All Data', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+               subtitle: Text('Delete logs, settings, and models', style: TextStyle(color: subtitleColor, fontSize: 13)),
+               trailing: const Icon(Icons.delete_forever, color: Colors.red),
+               onTap: () => _showClearConfirmation(context, settingsProvider, true),
+          ),
+        ],
+      ),
+    );
+  }
+  
+  void _showClearConfirmation(BuildContext context, SettingsProvider provider, bool isFullWipe) {
+      showDialog(
+          context: context, 
+          builder: (ctx) => AlertDialog(
+              backgroundColor: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF2C2C2C) : Colors.white,
+              title: Text(isFullWipe ? 'Wipe All Data?' : 'Clear History?', style: TextStyle(color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black, fontWeight: FontWeight.bold)),
+              content: Text(
+                  isFullWipe 
+                    ? 'This will permanently delete ALL app data, including settings, API keys, downloaded models meta-data, and chat history. This action cannot be undone.' 
+                    : 'This will permanently delete all your chat history. This action cannot be undone.',
+                  style: TextStyle(color: Theme.of(context).brightness == Brightness.dark ? Colors.white70 : Colors.black87),
+              ),
+              actions: [
+                  TextButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      child: const Text('Cancel'),
+                  ),
+                  TextButton(
+                      onPressed: () {
+                          Navigator.pop(ctx);
+                          if (isFullWipe) {
+                              provider.clearAllData();
+                          } else {
+                              provider.clearChatHistory();
+                          }
+                          ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text(isFullWipe ? 'All data wiped' : 'Chat history cleared')),
+                          );
+                      },
+                      child: Text('Delete', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+                  ),
+              ],
+          )
+      );
   }
 
   Widget _buildStatusDot(bool isConnected) {

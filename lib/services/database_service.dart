@@ -449,4 +449,22 @@ class DatabaseService {
     );
     return List.generate(maps.length, (i) => LocalModel.fromMap(maps[i]));
   }
+
+  // Privacy & Data Management
+  Future<void> clearChatHistory() async {
+    final db = await database;
+    await db.transaction((txn) async {
+      await txn.delete(AppConstants.tableNameMessages);
+      await txn.delete(AppConstants.tableNameChats);
+    });
+  }
+
+  Future<void> clearAllData() async {
+    final db = await database;
+    await db.transaction((txn) async {
+       await txn.delete(AppConstants.tableNameMessages);
+       await txn.delete(AppConstants.tableNameChats);
+       await txn.delete('local_models');
+    });
+  }
 }

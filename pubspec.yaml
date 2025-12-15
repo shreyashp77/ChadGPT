@@ -63,6 +63,7 @@ dependencies:
   wakelock_plus: ^1.2.8
   flutter_foreground_task: ^8.10.3
   llama_flutter_android: ^0.1.1  # Android-optimized llama.cpp wrapper
+  flutter_secure_storage: ^9.0.0
 
 dev_dependencies:
   flutter_test:

@@ -3,6 +3,8 @@ import '../models/app_settings.dart';
 import '../services/shared_prefs_service.dart';
 import '../services/api_service.dart';
 import '../services/comfyui_service.dart';
+import '../services/database_service.dart';
+import '../services/secure_storage_service.dart';
 import '../utils/constants.dart';
 
 class SettingsProvider with ChangeNotifier {
@@ -226,6 +228,21 @@ class SettingsProvider with ChangeNotifier {
     }
     final service = ComfyuiService(_settings.comfyuiUrl!);
     _isComfyUiConnected = await service.checkConnection();
+    _isComfyUiConnected = await service.checkConnection();
+    notifyListeners();
+  }
+
+  Future<void> clearChatHistory() async {
+    await DatabaseService().clearChatHistory();
+    // No need to notify listeners here really, unless we had a "last cleared" timestamp
+  }
+
+  Future<void> clearAllData() async {
+    await DatabaseService().clearAllData();
+    await SecureStorageService().deleteAll();
+    await _prefsService.setFirstRunCompleted(); // Technically resets everything but let's keep it safe
+    // Ideally we should restart the app or reset internal state
+    _settings = await _prefsService.getSettings(); // Reload defaults
     notifyListeners();
   }
 }

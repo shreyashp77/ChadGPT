@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/app_settings.dart';
 import '../utils/constants.dart';
+import 'secure_storage_service.dart';
 
 class SharedPrefsService {
   static const String keyLmStudioUrl = 'lm_studio_url';
@@ -32,6 +33,8 @@ class SharedPrefsService {
 
   // First Run Key
   static const String keyIsFirstRun = 'is_first_run';
+
+  final _secureStorage = SecureStorageService();
 
   Future<AppSettings> getSettings() async {
     final prefs = await SharedPreferences.getInstance();
@@ -77,18 +80,36 @@ class SharedPrefsService {
       themeColor: prefs.getInt(keyThemeColor),
       modelAliases: aliases,
       apiProvider: apiProvider,
-      openRouterApiKey: prefs.getString(keyOpenRouterApiKey),
+      openRouterApiKey: await _getSecureKey(prefs, keyOpenRouterApiKey),
       searchProvider: searchProvider,
-      braveApiKey: prefs.getString(keyBraveApiKey),
-      bingApiKey: prefs.getString(keyBingApiKey),
-      googleApiKey: prefs.getString(keyGoogleApiKey),
+      braveApiKey: await _getSecureKey(prefs, keyBraveApiKey),
+      bingApiKey: await _getSecureKey(prefs, keyBingApiKey),
+      googleApiKey: await _getSecureKey(prefs, keyGoogleApiKey),
       googleCx: prefs.getString(keyGoogleCx),
-      perplexityApiKey: prefs.getString(keyPerplexityApiKey),
+      perplexityApiKey: await _getSecureKey(prefs, keyPerplexityApiKey),
       comfyuiUrl: prefs.getString(keyComfyuiUrl),
       selectedLocalModelId: prefs.getString(keySelectedLocalModelId),
       localModelGpuLayers: prefs.getInt(keyLocalModelGpuLayers) ?? 0,
       localModelContextSize: prefs.getInt(keyLocalModelContextSize) ?? 2048,
     );
+  }
+
+  // Helper to migrate or read secure key
+  Future<String?> _getSecureKey(SharedPreferences prefs, String key) async {
+    // 1. Try Secure Storage
+    final secureVal = await _secureStorage.readProtected(key);
+    if (secureVal != null) return secureVal;
+
+    // 2. Fallback to SharedPrefs (Migration)
+    if (prefs.containsKey(key)) {
+      final oldVal = prefs.getString(key);
+      if (oldVal != null && oldVal.isNotEmpty) {
+        await _secureStorage.writeProtected(key, oldVal);
+        await prefs.remove(key); // Remove from insecure storage
+        return oldVal;
+      }
+    }
+    return null;
   }
 
   Future<void> saveSettings(AppSettings settings) async {
@@ -122,45 +143,18 @@ class SharedPrefsService {
     }
     await prefs.setString(keyApiProvider, providerStr);
     
-    // Save OpenRouter API key
-    if (settings.openRouterApiKey != null && settings.openRouterApiKey!.isNotEmpty) {
-      await prefs.setString(keyOpenRouterApiKey, settings.openRouterApiKey!);
-    } else {
-      await prefs.remove(keyOpenRouterApiKey);
-    }
+    // Save OpenRouter API key (SECURE)
+    await _secureStorage.writeProtected(keyOpenRouterApiKey, settings.openRouterApiKey);
 
     // Save Search Settings
     await prefs.setString(keySearchProvider, settings.searchProvider.toString().split('.').last);
 
-    if (settings.braveApiKey != null && settings.braveApiKey!.isNotEmpty) {
-      await prefs.setString(keyBraveApiKey, settings.braveApiKey!);
-    } else {
-      await prefs.remove(keyBraveApiKey);
-    }
-
-    if (settings.bingApiKey != null && settings.bingApiKey!.isNotEmpty) {
-      await prefs.setString(keyBingApiKey, settings.bingApiKey!);
-    } else {
-      await prefs.remove(keyBingApiKey);
-    }
-
-    if (settings.googleApiKey != null && settings.googleApiKey!.isNotEmpty) {
-      await prefs.setString(keyGoogleApiKey, settings.googleApiKey!);
-    } else {
-      await prefs.remove(keyGoogleApiKey);
-    }
-
-    if (settings.googleCx != null && settings.googleCx!.isNotEmpty) {
-      await prefs.setString(keyGoogleCx, settings.googleCx!);
-    } else {
-      await prefs.remove(keyGoogleCx);
-    }
-
-    if (settings.perplexityApiKey != null && settings.perplexityApiKey!.isNotEmpty) {
-      await prefs.setString(keyPerplexityApiKey, settings.perplexityApiKey!);
-    } else {
-      await prefs.remove(keyPerplexityApiKey);
-    }
+    // Secure Keys
+    await _secureStorage.writeProtected(keyBraveApiKey, settings.braveApiKey);
+    await _secureStorage.writeProtected(keyBingApiKey, settings.bingApiKey);
+    await _secureStorage.writeProtected(keyGoogleApiKey, settings.googleApiKey);
+    await prefs.setString(keyGoogleCx, settings.googleCx ?? ''); // CX is not secret
+    await _secureStorage.writeProtected(keyPerplexityApiKey, settings.perplexityApiKey);
 
     // ComfyUI
     if (settings.comfyuiUrl != null && settings.comfyuiUrl!.isNotEmpty) {
