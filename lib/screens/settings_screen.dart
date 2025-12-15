@@ -3,7 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../providers/settings_provider.dart';
+import '../providers/chat_provider.dart';
 import '../models/app_settings.dart';
+import '../services/api_service.dart';
 import '../services/comfyui_service.dart';
 import '../services/local_model_service.dart';
 import '../utils/theme.dart';
@@ -771,12 +773,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       child: const Text('Cancel'),
                   ),
                   TextButton(
-                      onPressed: () {
+                      onPressed: () async {
                           Navigator.pop(ctx);
                           if (isFullWipe) {
-                              provider.clearAllData();
+                              await provider.clearAllData();
+                              if (context.mounted) {
+                                  context.read<ChatProvider>().clearAllChats();
+                              }
                           } else {
-                              provider.clearChatHistory();
+                              // Use ChatProvider to clear history and update UI state
+                              context.read<ChatProvider>().clearAllChats();
                           }
                           ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(content: Text(isFullWipe ? 'All data wiped' : 'Chat history cleared')),

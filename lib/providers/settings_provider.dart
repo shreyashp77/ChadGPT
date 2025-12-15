@@ -232,10 +232,7 @@ class SettingsProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> clearChatHistory() async {
-    await DatabaseService().clearChatHistory();
-    // No need to notify listeners here really, unless we had a "last cleared" timestamp
-  }
+
 
   Future<void> clearAllData() async {
     await DatabaseService().clearAllData();

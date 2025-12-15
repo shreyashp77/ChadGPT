@@ -1298,6 +1298,13 @@ class ChatProvider with ChangeNotifier, WidgetsBindingObserver {
     final useWebSearch = _settingsProvider.settings.useWebSearch;
     await _generateAssistantResponse(userMsg.content, useWebSearch: useWebSearch);
   }
+  Future<void> clearAllChats() async {
+      await _dbService.clearChatHistory();
+      _chats.clear();
+      // Reset current chat
+      startNewChat();
+      notifyListeners();
+  }
 }
 
 @pragma('vm:entry-point')
@@ -1328,6 +1335,8 @@ class FirstTaskHandler extends TaskHandler {
   void onNotificationPressed() {
     FlutterForegroundTask.launchApp("/");
   }
+
+
   
   @override
   void onRepeatEvent(DateTime timestamp) {

@@ -23,6 +23,7 @@ class _LocalModelsScreenState extends State<LocalModelsScreen> {
   List<LocalModel> _availableModels = [];
   bool _isLoading = true;
   String? _error;
+  String? _processingModelId;
   
   // Stream subscriptions for active downloads
   final Map<String, dynamic> _downloadSubscriptions = {};
@@ -192,16 +193,22 @@ class _LocalModelsScreenState extends State<LocalModelsScreen> {
     await _loadModels();
   }
 
-  Future<void> _unloadModel() async {
-    await _localModelService.unloadModel();
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Model unloaded'),
-          backgroundColor: Colors.orange,
-        ),
-      );
-      setState(() {});  // Refresh UI to show model as no longer active
+  Future<void> _unloadModel(LocalModel model) async {
+    setState(() {
+      _processingModelId = model.id;
+    });
+
+    try {
+      await _localModelService.unloadModel();
+      if (mounted) {
+        setState(() {});  // Refresh UI to show model as no longer active
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _processingModelId = null;
+        });
+      }
     }
   }
 
@@ -253,36 +260,12 @@ class _LocalModelsScreenState extends State<LocalModelsScreen> {
   }
 
   Future<void> _loadAndUseModel(LocalModel model) async {
-    // Show loading indicator
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => const Center(
-        child: Card(
-          child: Padding(
-            padding: EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                CircularProgressIndicator(),
-                SizedBox(height: 16),
-                Text('Loading model...'),
-                SizedBox(height: 8),
-                Text(
-                  'This may take a moment',
-                  style: TextStyle(fontSize: 12, color: Colors.grey),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
+    setState(() {
+      _processingModelId = model.id;
+    });
 
     try {
       final success = await _localModelService.loadModel(model);
-      
-      if (mounted) Navigator.pop(context); // Dismiss loading dialog
       
       if (success) {
         // Update status in database
@@ -291,16 +274,17 @@ class _LocalModelsScreenState extends State<LocalModelsScreen> {
         await _loadModels();
 
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('${model.name} is now active!'),
-              backgroundColor: Colors.green,
-            ),
-          );
-          Navigator.pop(context, model); // Return the loaded model
+          // Previously showed snackbar and navigated back
+          // Now just strictly updating state (already handled by _loadModels)
         }
       } else {
         if (mounted) {
+          // Keep error snackbar? User said "these pills", implying success ones.
+          // But usually we want to see errors.
+          // The prompt says "these pills still show up, remove them". The context is the big green/orange ones.
+          // I'll keep errors for now as they are critical feedback, but maybe style them less intrusively?
+          // Actually, "remove them" probably refers to the ones we just styled.
+          // I will remove the success ones.
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('Failed to load model'),
@@ -311,13 +295,18 @@ class _LocalModelsScreenState extends State<LocalModelsScreen> {
       }
     } catch (e) {
       if (mounted) {
-        Navigator.pop(context); // Dismiss loading dialog
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Error: $e'),
             backgroundColor: Colors.red,
           ),
         );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _processingModelId = null;
+        });
       }
     }
   }
@@ -655,14 +644,26 @@ class _LocalModelsScreenState extends State<LocalModelsScreen> {
                     const SizedBox(width: 8),
                     // Use/Unload button - toggles based on load state
                     ElevatedButton.icon(
-                      onPressed: isLoaded 
-                          ? () => _unloadModel() 
-                          : () => _loadAndUseModel(model),
-                      icon: Icon(
-                        isLoaded ? Icons.eject : Icons.play_arrow,
-                        size: 18,
+                      onPressed: isCurrentlyDownloading || _processingModelId != null 
+                          ? null // Disable while processing
+                          : (isLoaded 
+                              ? () => _unloadModel(model) 
+                              : () => _loadAndUseModel(model)),
+                      icon: _processingModelId == model.id 
+                          ? const SizedBox(
+                              width: 18, 
+                              height: 18, 
+                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                            )
+                          : Icon(
+                              isLoaded ? Icons.eject : Icons.play_arrow,
+                              size: 18,
+                            ),
+                      label: Text(
+                        _processingModelId == model.id 
+                            ? (isLoaded ? 'Unloading...' : 'Loading...') 
+                            : (isLoaded ? 'Unload' : 'Use'),
                       ),
-                      label: Text(isLoaded ? 'Unload' : 'Use'),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: isLoaded 
                             ? Colors.orange 
