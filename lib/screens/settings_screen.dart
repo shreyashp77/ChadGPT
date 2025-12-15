@@ -5,6 +5,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import '../providers/settings_provider.dart';
 import '../models/app_settings.dart';
 import '../services/comfyui_service.dart';
+import '../services/local_model_service.dart';
 import '../utils/theme.dart';
 import 'package:http/http.dart' as http;
 
@@ -143,7 +144,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget _buildProviderCard(BuildContext context, SettingsProvider settingsProvider) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final settings = settingsProvider.settings;
-    final isLocalModel = settings.apiProvider == ApiProvider.localModel;
+    final colorScheme = Theme.of(context).colorScheme;
     
     return _buildCard(
       context: context,
@@ -152,105 +153,52 @@ class _SettingsScreenState extends State<SettingsScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Choose your AI backend',
-              style: TextStyle(
-                color: isDark ? Colors.white70 : Colors.black54,
-                fontSize: 13,
-              ),
+            // Provider options as selectable cards
+            _buildProviderOption(
+              context: context,
+              title: 'LM Studio',
+              subtitle: 'Connect to local LM Studio server',
+              icon: Icons.computer,
+              isSelected: settings.apiProvider == ApiProvider.lmStudio,
+              onTap: () => _selectProvider(settingsProvider, settings, ApiProvider.lmStudio),
             ),
             const SizedBox(height: 12),
-            SegmentedButton<ApiProvider>(
-              segments: const [
-                ButtonSegment<ApiProvider>(
-                  value: ApiProvider.lmStudio,
-                  label: Text('LM Studio'),
-                  icon: Icon(Icons.computer),
-                ),
-                ButtonSegment<ApiProvider>(
-                  value: ApiProvider.openRouter,
-                  label: Text('OpenRouter'),
-                  icon: Icon(Icons.cloud),
-                ),
-                ButtonSegment<ApiProvider>(
-                  value: ApiProvider.localModel,
-                  label: Text('On-Device'),
-                  icon: Icon(Icons.phone_android),
-                ),
-              ],
-              selected: {settings.apiProvider},
-              onSelectionChanged: (Set<ApiProvider> newSelection) {
-                settingsProvider.updateSettings(apiProvider: newSelection.first);
-              },
-              style: ButtonStyle(
-                backgroundColor: WidgetStateProperty.resolveWith<Color?>((states) {
-                  if (states.contains(WidgetState.selected)) {
-                    return Theme.of(context).colorScheme.primary;
-                  }
-                  return isDark ? Colors.black.withValues(alpha: 0.2) : Colors.grey.withValues(alpha: 0.1);
-                }),
-                foregroundColor: WidgetStateProperty.resolveWith<Color?>((states) {
-                  if (states.contains(WidgetState.selected)) {
-                    return Colors.white;
-                  }
-                  return isDark ? Colors.white70 : Colors.black54;
-                }),
-              ),
+            _buildProviderOption(
+              context: context,
+              title: 'OpenRouter',
+              subtitle: 'Access 100+ AI models via cloud API',
+              icon: Icons.cloud_outlined,
+              isSelected: settings.apiProvider == ApiProvider.openRouter,
+              onTap: () => _selectProvider(settingsProvider, settings, ApiProvider.openRouter),
             ),
+            const SizedBox(height: 12),
+            _buildProviderOption(
+              context: context,
+              title: 'On-Device',
+              subtitle: 'Run models locally • No internet required',
+              icon: Icons.smartphone,
+              isSelected: settings.apiProvider == ApiProvider.localModel,
+              onTap: () => _selectProvider(settingsProvider, settings, ApiProvider.localModel),
+              badge: 'Private',
+            ),
+            
             // Show manage models button when On-Device is selected
-            if (isLocalModel) ...[
+            if (settings.apiProvider == ApiProvider.localModel) ...[
               const SizedBox(height: 16),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () => Navigator.pushNamed(context, '/local-models'),
+                  icon: const Icon(Icons.download, size: 18),
+                  label: const Text('Manage Local Models'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: colorScheme.primary,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.info_outline,
-                          size: 16,
-                          color: Theme.of(context).colorScheme.primary,
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            'Models run entirely on your phone. No internet required!',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: isDark ? Colors.white70 : Colors.black54,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        onPressed: () {
-                          Navigator.pushNamed(context, '/local-models');
-                        },
-                        icon: const Icon(Icons.download, size: 18),
-                        label: const Text('Manage Local Models'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Theme.of(context).colorScheme.primary,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
                 ),
               ),
             ],
@@ -259,6 +207,136 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ),
     );
   }
+  
+  void _selectProvider(SettingsProvider settingsProvider, AppSettings settings, ApiProvider newProvider) {
+    // Unload local model when switching away from On-Device provider
+    if (settings.apiProvider == ApiProvider.localModel && newProvider != ApiProvider.localModel) {
+      LocalModelService().unloadModel();
+    }
+    settingsProvider.updateSettings(apiProvider: newProvider);
+  }
+  
+  Widget _buildProviderOption({
+    required BuildContext context,
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    required bool isSelected,
+    required VoidCallback onTap,
+    String? badge,
+  }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final colorScheme = Theme.of(context).colorScheme;
+    
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: isSelected 
+                ? colorScheme.primary.withValues(alpha: 0.15)
+                : (isDark ? Colors.white.withValues(alpha: 0.03) : Colors.black.withValues(alpha: 0.02)),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: isSelected 
+                  ? colorScheme.primary 
+                  : (isDark ? Colors.white.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.08)),
+              width: isSelected ? 2 : 1,
+            ),
+          ),
+          child: Row(
+            children: [
+              // Icon container
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: isSelected 
+                      ? colorScheme.primary.withValues(alpha: 0.2)
+                      : (isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.05)),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  icon,
+                  color: isSelected ? colorScheme.primary : (isDark ? Colors.white60 : Colors.black45),
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 16),
+              // Text content
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Text(
+                          title,
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                            color: isSelected ? colorScheme.primary : (isDark ? Colors.white : Colors.black87),
+                          ),
+                        ),
+                        if (badge != null) ...[
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: Colors.green.withValues(alpha: 0.2),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              badge,
+                              style: const TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.green,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      subtitle,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: isDark ? Colors.white54 : Colors.black45,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              // Selection indicator
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                width: 24,
+                height: 24,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: isSelected ? colorScheme.primary : Colors.transparent,
+                  border: Border.all(
+                    color: isSelected ? colorScheme.primary : (isDark ? Colors.white30 : Colors.black26),
+                    width: 2,
+                  ),
+                ),
+                child: isSelected 
+                    ? const Icon(Icons.check, size: 14, color: Colors.white)
+                    : null,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
 
   Widget _buildConnectionCard(BuildContext context, SettingsProvider settingsProvider) {
     final settings = settingsProvider.settings;
@@ -289,88 +367,91 @@ class _SettingsScreenState extends State<SettingsScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (settings.apiProvider == ApiProvider.lmStudio) ...[
-              _buildInputField(
-                  context, 
-                  'LM Studio URL', 
-                  _lmStudioController, 
-                  Icons.computer, 
-                  (val) => settingsProvider.updateSettings(lmStudioUrl: val),
-                  labelTrailing: lmStatusDot
-              ),
-              const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: () => _scanForLMStudio(context, settingsProvider),
-                  icon: const Icon(Icons.search, size: 18),
-                  label: const Text('Auto-detect LM Studio'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Theme.of(context).colorScheme.primary,
-                    side: BorderSide(color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.5)),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
+            // Only show API provider-specific options when NOT using On-Device
+            if (!isLocalModel) ...[
+              if (settings.apiProvider == ApiProvider.lmStudio) ...[
+                _buildInputField(
+                    context, 
+                    'LM Studio URL', 
+                    _lmStudioController, 
+                    Icons.computer, 
+                    (val) => settingsProvider.updateSettings(lmStudioUrl: val),
+                    labelTrailing: lmStatusDot
                 ),
-              ),
-            ] else ...[
-              _buildInputField(
-                  context, 
-                  'OpenRouter API Key', 
-                  _openRouterApiKeyController, 
-                  Icons.vpn_key, 
-                  (val) => settingsProvider.updateSettings(openRouterApiKey: val),
-                  labelTrailing: openRouterStatusDot,
-                  obscureText: true,
-                  hintText: 'sk-or-...',
-              ),
-               const SizedBox(height: 16),
+                const SizedBox(height: 12),
                 SizedBox(
                   width: double.infinity,
-                  height: 50,
-                  child: ElevatedButton(
-                    onPressed: settingsProvider.isLoadingModels ? null : () async {
-                        final scaffoldMessenger = ScaffoldMessenger.of(context);
-                        await settingsProvider.fetchModels();
-                        if (mounted) {
-                            String message;
-                            if (settingsProvider.error == null) {
-                                message = 'Connected! Found ${settingsProvider.availableModels.length} free models.';
-                            } else {
-                              final cleanError = settingsProvider.error!.replaceAll('Exception: ', '');
-                              message = 'Error: $cleanError';
-                            }
-                            scaffoldMessenger.showSnackBar(
-                                SnackBar(
-                                    content: Text(message),
-                                    behavior: SnackBarBehavior.floating,
-                                    padding: const EdgeInsets.all(16),
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                )
-                            );
-                        }
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Theme.of(context).colorScheme.primary,
-                      foregroundColor: Colors.white,
+                  child: OutlinedButton.icon(
+                    onPressed: () => _scanForLMStudio(context, settingsProvider),
+                    icon: const Icon(Icons.search, size: 18),
+                    label: const Text('Auto-detect LM Studio'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Theme.of(context).colorScheme.primary,
+                      side: BorderSide(color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.5)),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      elevation: 0,
                     ),
-                    child: settingsProvider.isLoadingModels 
-                        ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) 
-                        : const Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(Icons.link),
-                              SizedBox(width: 8),
-                              Text('Test Connection', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                            ],
-                          ),
                   ),
                 ),
+              ] else ...[
+                _buildInputField(
+                    context, 
+                    'OpenRouter API Key', 
+                    _openRouterApiKeyController, 
+                    Icons.vpn_key, 
+                    (val) => settingsProvider.updateSettings(openRouterApiKey: val),
+                    labelTrailing: openRouterStatusDot,
+                    obscureText: true,
+                    hintText: 'sk-or-...',
+                ),
+                 const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 50,
+                    child: ElevatedButton(
+                      onPressed: settingsProvider.isLoadingModels ? null : () async {
+                          final scaffoldMessenger = ScaffoldMessenger.of(context);
+                          await settingsProvider.fetchModels();
+                          if (mounted) {
+                              String message;
+                              if (settingsProvider.error == null) {
+                                  message = 'Connected! Found ${settingsProvider.availableModels.length} free models.';
+                              } else {
+                                final cleanError = settingsProvider.error!.replaceAll('Exception: ', '');
+                                message = 'Error: $cleanError';
+                              }
+                              scaffoldMessenger.showSnackBar(
+                                  SnackBar(
+                                      content: Text(message),
+                                      behavior: SnackBarBehavior.floating,
+                                      padding: const EdgeInsets.all(16),
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                  )
+                              );
+                          }
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Theme.of(context).colorScheme.primary,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        elevation: 0,
+                      ),
+                      child: settingsProvider.isLoadingModels 
+                          ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) 
+                          : const Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.link),
+                                SizedBox(width: 8),
+                                Text('Test Connection', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                              ],
+                            ),
+                    ),
+                  ),
+              ],
+              
+              const SizedBox(height: 24),
             ],
-            
-            const SizedBox(height: 24),
             _buildInputField(
               context,
               'ComfyUI Server URL',
