@@ -46,7 +46,7 @@ class Persona {
       name: 'Default',
       description: 'Helpful AI assistant',
       icon: Icons.auto_awesome,
-      systemPrompt: 'You are a helpful AI assistant.',
+      systemPrompt: 'You are ChadGPT, a helpful AI assistant running locally on the user\'s device. You are not affiliated with Anthropic, OpenAI, or Google.',
     ),
     Persona(
       id: 'coder',

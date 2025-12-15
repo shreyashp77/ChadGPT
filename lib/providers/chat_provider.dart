@@ -1035,8 +1035,12 @@ class ChatProvider with ChangeNotifier, WidgetsBindingObserver {
     _startForegroundService();
     
     // Set loading model name for indicator (use display name, not raw ID)
-    final modelId = _settingsProvider.settings.selectedModelId;
-    _loadingModelName = modelId != null ? _settingsProvider.getModelDisplayName(modelId) : null;
+    if (_settingsProvider.settings.apiProvider == ApiProvider.localModel) {
+      _loadingModelName = LocalModelService().loadedModel?.name ?? 'Local Model';
+    } else {
+      final modelId = _settingsProvider.settings.selectedModelId;
+      _loadingModelName = modelId != null ? _settingsProvider.getModelDisplayName(modelId) : null;
+    }
     notifyListeners();
 
     // Prepare for response

@@ -1,3 +1,34 @@
+# v1.2.0 - The "Your Phone, Your AI" Update 📱
+
+Run AI models **directly on your phone** — no internet, no servers, just you and your private AI.
+
+## 🌟 New Features
+
+### 📱 On-Device LLM Support
+- **Run Models Locally**: Download and run GGUF models directly on your phone
+- **Model Browser**: Browse and download models from Hugging Face
+- **Background Downloads**: Models download in the background while you use the app
+- **Hot Swap**: Switch between downloaded models instantly
+- **Unload**: Free up RAM by unloading models when not in use
+- **Persistent Storage**: Downloaded models survive app restarts
+
+### ⚙️ Redesigned Settings
+- **New Provider Selection UI**: Beautiful card-based provider selection with icons and descriptions
+- **Cleaner Layout**: API key fields hidden when using On-Device provider  
+- **Auto-Unload**: Local model automatically unloads when switching to another provider
+
+### 🎯 Model Selector Improvements
+- **Local Models in Selector**: Access downloaded models from the chat screen model picker
+- **Load/Unload**: Tap to load, tap Unload to free memory
+- **Shows Active Model**: Loaded model name displayed in selector button
+
+## 🐛 Bug Fixes
+- Fixed stop generation not working for local models
+- Fixed "Already generating" error when sending new messages
+- Improved local model state management
+
+---
+
 # v1.1.0 - The "Organized & Efficient" Update 🚀
 
 We've packed this release with features to make your experience smoother, faster, and more organized.

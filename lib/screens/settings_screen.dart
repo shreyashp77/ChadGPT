@@ -8,6 +8,7 @@ import '../services/comfyui_service.dart';
 import '../services/local_model_service.dart';
 import '../utils/theme.dart';
 import 'package:http/http.dart' as http;
+import 'package:package_info_plus/package_info_plus.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -26,11 +27,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final _googleCxController = TextEditingController();
   final _perplexityController = TextEditingController();
   final _comfyuiController = TextEditingController();
+  String _version = '';
 
   @override
   void initState() {
     super.initState();
-    final settings = context.read<SettingsProvider>().settings;
+    _loadVersion();
+    final settingsProvider = Provider.of<SettingsProvider>(context, listen: false);
+    final settings = settingsProvider.settings;
     _lmStudioController.text = settings.lmStudioUrl;
     _searxngController.text = settings.searxngUrl;
     _openRouterApiKeyController.text = settings.openRouterApiKey ?? '';
@@ -1239,19 +1243,28 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return foundServers;
   }
 
-   Widget _buildAboutCard(BuildContext context) {
+  Future<void> _loadVersion() async {
+    final packageInfo = await PackageInfo.fromPlatform();
+    if (mounted) {
+      setState(() {
+        _version = '${packageInfo.version}';
+      });
+    }
+  }
+
+  Widget _buildAboutCard(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return _buildCard(
       context: context,
       child: ListTile(
-        contentPadding: const EdgeInsets.all(16),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
         leading: Container(
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.1), shape: BoxShape.circle),
           child: Icon(Icons.info_outline, color: isDark ? Colors.white : Colors.black87),
         ),
         title: Text('Version', style: TextStyle(color: isDark ? Colors.white : Colors.black87, fontWeight: FontWeight.w500)),
-        trailing: Text('1.0.1.1', style: TextStyle(color: isDark ? Colors.white54 : Colors.black54)),
+        trailing: Text(_version, style: TextStyle(color: isDark ? Colors.white54 : Colors.black54)),
       ),
     );
   }

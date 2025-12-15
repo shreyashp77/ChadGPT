@@ -899,7 +899,14 @@ class _ChatScreenState extends State<ChatScreen> {
                         Navigator.pop(ctx);
                         if (this.mounted) {
                           ScaffoldMessenger.of(this.context).showSnackBar(
-                            const SnackBar(content: Text('Model unloaded'), backgroundColor: Colors.orange),
+                            SnackBar(
+                              content: const Text('Model unloaded', textAlign: TextAlign.center), 
+                              backgroundColor: Colors.orange,
+                              behavior: SnackBarBehavior.floating,
+                              margin: const EdgeInsets.only(bottom: 100, left: 20, right: 20),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                              duration: const Duration(milliseconds: 1500),
+                            ),
                           );
                         }
                       },
@@ -910,19 +917,38 @@ class _ChatScreenState extends State<ChatScreen> {
                   if (!isLoaded) {
                     // Load the model
                     ScaffoldMessenger.of(this.context).showSnackBar(
-                      SnackBar(content: Text('Loading ${model.name}...')),
+                      SnackBar(
+                        content: Text('Loading ${model.name}...', textAlign: TextAlign.center),
+                        behavior: SnackBarBehavior.floating,
+                        margin: const EdgeInsets.only(bottom: 100, left: 20, right: 20),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                        duration: const Duration(milliseconds: 1500),
+                      ),
                     );
                     try {
                       await localModelService.loadModel(model);
                       if (mounted) {
                         ScaffoldMessenger.of(this.context).showSnackBar(
-                          SnackBar(content: Text('${model.name} loaded!'), backgroundColor: Colors.green),
+                          SnackBar(
+                            content: Text('${model.name} loaded!', textAlign: TextAlign.center), 
+                            backgroundColor: Colors.green,
+                            behavior: SnackBarBehavior.floating,
+                            margin: const EdgeInsets.only(bottom: 100, left: 20, right: 20),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                            duration: const Duration(seconds: 2),
+                          ),
                         );
                       }
                     } catch (e) {
                       if (mounted) {
                         ScaffoldMessenger.of(this.context).showSnackBar(
-                          SnackBar(content: Text('Failed to load: $e'), backgroundColor: Colors.red),
+                          SnackBar(
+                            content: Text('Failed to load: $e', textAlign: TextAlign.center), 
+                            backgroundColor: Colors.red,
+                            behavior: SnackBarBehavior.floating,
+                            margin: const EdgeInsets.only(bottom: 100, left: 20, right: 20),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                          ),
                         );
                       }
                     }

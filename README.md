@@ -7,6 +7,7 @@ A powerful, privacy-focused AI chat client built with Flutter. ChadGPT runs loca
 ### 🤖 Multi-Provider Support
 - **LM Studio**: Connect to your local LLMs for complete privacy and offline capability
 - **OpenRouter**: Access a wide range of cloud models (filters for free models by default)
+- **On-Device**: Run GGUF models directly on your phone – no internet, no server, truly private AI
 - Auto-detect functionality for discovering LM Studio instances on your local network
 
 ### 🌐 Web Search Integration
@@ -107,6 +108,27 @@ For local text generation with complete privacy:
 
 ---
 
+### 2.5. On-Device Models (No Server Required)
+
+Run AI models **directly on your phone** with no network connection needed:
+
+1. Go to **Settings** → Select **On-Device** provider
+2. Tap **Manage Local Models**
+3. Browse and download GGUF models from Hugging Face
+4. Models are downloaded once and stored locally
+5. Tap a downloaded model to load it into memory
+
+**Features:**
+- 📥 **Background Downloads**: Continue using the app while models download
+- 💾 **Persistent Storage**: Models survive app restarts
+- 🔄 **Hot Swap**: Switch between downloaded models without re-downloading  
+- ⏹️ **Unload**: Free up RAM by unloading models when not needed
+
+> [!NOTE]
+> Smaller quantized models (Q4_K_M, Q5_K_M) are recommended for mobile devices. A 0.5B-1B parameter model typically works well on most phones.
+
+---
+
 ### 3. Web Search (SearXNG)
 
 For privacy-respecting web search integration, we recommend SearXNG.
@@ -189,6 +211,7 @@ python main.py --listen 0.0.0.0
 - **Notifications**: flutter_local_notifications
 - **Background Tasks**: flutter_foreground_task
 - **Wake Lock**: wakelock_plus
+- **On-Device LLM**: llama_flutter_android (GGUF inference)
 
 ---
 
