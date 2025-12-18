@@ -84,6 +84,12 @@ class ChatProvider with ChangeNotifier, WidgetsBindingObserver {
   // Image generation tracking
   final Set<String> _activeImageGenerations = {};
   bool get isGeneratingImage => _currentChat != null && _activeImageGenerations.contains(_currentChat!.id);
+
+  // Deep Research tracking
+  bool _isDeepResearching = false;
+  bool get isDeepResearching => _isDeepResearching;
+  String? _deepResearchStatus;
+  String? get deepResearchStatus => _deepResearchStatus;
   
   // Generated images for current chat session (for media history)
   List<String> get generatedImages {
@@ -518,6 +524,15 @@ class ChatProvider with ChangeNotifier, WidgetsBindingObserver {
       final imagePrompt = content.substring(8).trim(); // Remove '/create ' prefix
       if (imagePrompt.isNotEmpty) {
         await _generateImage(imagePrompt);
+        return;
+      }
+    }
+
+    // Check for /research command
+    if (content.trim().toLowerCase().startsWith('/research ')) {
+      final topic = content.substring(10).trim();
+      if (topic.isNotEmpty) {
+        await startDeepResearch(topic);
         return;
       }
     }
@@ -1332,6 +1347,153 @@ class ChatProvider with ChangeNotifier, WidgetsBindingObserver {
       startNewChat();
       notifyListeners();
   }
+  Future<void> startDeepResearch(String topic) async {
+    if (_currentChat == null) startNewChat();
+    final targetChat = _currentChat!;
+    
+    _isDeepResearching = true;
+    _deepResearchStatus = "Planning Research Strategy...";
+    _activeGenerations.add(targetChat.id);
+    notifyListeners();
+
+    // 1. Add User Message
+    final userMsg = Message(
+      id: const Uuid().v4(),
+      chatId: targetChat.id,
+      role: MessageRole.user,
+      content: "/research $topic",
+      timestamp: DateTime.now(),
+    );
+    targetChat.messages.add(userMsg);
+    if (!_isTempMode) await _dbService.insertMessage(userMsg, false);
+
+    // 2. Add Assistant Message (Placeholder for status)
+    final assistantMsgId = const Uuid().v4();
+    var assistantMsg = Message(
+      id: assistantMsgId,
+      chatId: targetChat.id,
+      role: MessageRole.assistant,
+      content: "🔎 **Deep Research Initiative: $topic**\n\nStarting research process...",
+      timestamp: DateTime.now(),
+    );
+    targetChat.messages.add(assistantMsg);
+    if (!_isTempMode) await _dbService.insertMessage(assistantMsg, false);
+    notifyListeners();
+
+    try {
+      final modelId = _settingsProvider.settings.selectedModelId ?? 'openai/gpt-3.5-turbo';
+      
+      // PHASE 1: Planning Queries
+      _deepResearchStatus = "Generating search queries...";
+      notifyListeners();
+      
+      final planningPrompt = "You are a research coordinator. Based on the topic '$topic', generate 3 distinct and targeted web search queries that will provide a comprehensive understanding. Return ONLY a JSON list of strings. Example: [\"query 1\", \"query 2\", \"query 3\"]";
+      
+      final planningResult = await _settingsProvider.apiService.chatCompletionStream(
+        modelId: modelId,
+        messages: [Message(id: 'plan', chatId: 'research', role: MessageRole.user, content: planningPrompt, timestamp: DateTime.now())],
+      ).fold<String>("", (prev, chunk) => prev + (chunk.content ?? ""));
+      
+      List<String> queries = [];
+      try {
+        final startBracket = planningResult.indexOf('[');
+        final endBracket = planningResult.lastIndexOf(']');
+        if (startBracket != -1 && endBracket != -1) {
+          final cleanedJson = planningResult.substring(startBracket, endBracket + 1);
+          queries = List<String>.from(jsonDecode(cleanedJson));
+        } else {
+          throw Exception("Could not find JSON in response");
+        }
+      } catch (e) {
+        queries = [topic, "$topic latest developments", "$topic detailed overview"];
+      }
+
+      String strategyContent = "🔎 **Deep Research Initiative: $topic**\n\n"
+          "**Research Strategy:**\n" + queries.map((q) => "- $q").join("\n") + "\n\n"
+          "**Status:** Executing searches...";
+      
+      final msgIndex = targetChat.messages.indexWhere((m) => m.id == assistantMsgId);
+      if (msgIndex != -1) {
+        assistantMsg = assistantMsg.copyWith(content: strategyContent);
+        targetChat.messages[msgIndex] = assistantMsg;
+      }
+      notifyListeners();
+
+      // PHASE 2: Searching and Scraping
+      final List<String> scrapedContents = [];
+      for (var query in queries) {
+        _deepResearchStatus = "Searching: $query";
+        notifyListeners();
+        
+        final results = await _settingsProvider.apiService.searchWeb(query);
+        // Take top 2 unique URLs
+        final urls = results
+            .where((r) => r.contains("URL: "))
+            .map((r) => r.split("URL: ").last.trim())
+            .take(2)
+            .toList();
+
+        for (var url in urls) {
+          _deepResearchStatus = "Reading content: $url";
+          notifyListeners();
+          final content = await _settingsProvider.apiService.scrapeUrl(url);
+          scrapedContents.add("SOURCE: $url\nCONTENT:\n$content");
+        }
+      }
+
+      // PHASE 3: Synthesis
+      _deepResearchStatus = "Synthesizing Final Report...";
+      String synthesisInfo = "🔎 **Deep Research Initiative: $topic**\n\n"
+          "**Sources Analyzed:** ${scrapedContents.length}\n\n"
+          "---\n\n";
+          
+      final msgIndex2 = targetChat.messages.indexWhere((m) => m.id == assistantMsgId);
+      if (msgIndex2 != -1) {
+        assistantMsg = assistantMsg.copyWith(content: synthesisInfo);
+        targetChat.messages[msgIndex2] = assistantMsg;
+      }
+      notifyListeners();
+
+      final synthesisPrompt = "You are an expert researcher. I have gathered the following information on '$topic' from various sources:\n\n" + 
+          scrapedContents.join("\n\n---\n\n") + 
+          "\n\nBased on these findings, write a comprehensive, professional research report in Markdown. "
+          "Include sections for Overview, Key Findings, Technical Details, and Conclusion. "
+          "Cite the source URLs provided where appropriate. Be thorough but concise. Markdown only.";
+
+      String fullSynthesis = synthesisInfo;
+      final stream = _settingsProvider.apiService.chatCompletionStream(
+        modelId: modelId,
+        messages: [Message(id: 'synth', chatId: 'research', role: MessageRole.user, content: synthesisPrompt, timestamp: DateTime.now())],
+      );
+
+      await for (final chunk in stream) {
+        if (chunk.content != null) {
+          fullSynthesis += chunk.content!;
+          final msgIndex3 = targetChat.messages.indexWhere((m) => m.id == assistantMsgId);
+          if (msgIndex3 != -1) {
+            assistantMsg = assistantMsg.copyWith(content: fullSynthesis);
+            targetChat.messages[msgIndex3] = assistantMsg;
+          }
+          notifyListeners();
+        }
+      }
+
+      if (!_isTempMode) await _dbService.updateMessage(assistantMsg);
+
+    } catch (e) {
+      final msgIndexErr = targetChat.messages.indexWhere((m) => m.id == assistantMsgId);
+      if (msgIndexErr != -1) {
+        assistantMsg = assistantMsg.copyWith(content: assistantMsg.content + "\n\n❌ **Research Interrupted:** $e");
+        targetChat.messages[msgIndexErr] = assistantMsg;
+      }
+      notifyListeners();
+    } finally {
+      _isDeepResearching = false;
+      _deepResearchStatus = null;
+      _activeGenerations.remove(targetChat.id);
+      notifyListeners();
+    }
+  }
 }
 
 @pragma('vm:entry-point')
@@ -1364,7 +1526,6 @@ class FirstTaskHandler extends TaskHandler {
   }
 
 
-  
   @override
   void onRepeatEvent(DateTime timestamp) {
     // Optional

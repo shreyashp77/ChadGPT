@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
+import 'package:html/parser.dart' as html_parser;
 import 'package:http/http.dart' as http;
 import '../models/app_settings.dart';
 import '../models/message.dart';
@@ -992,6 +993,34 @@ Return ONLY the improved system prompt. Do not add any conversational filler, ex
     
     onProgress?.call('Scan complete');
     return foundServers;
+  }
+
+  Future<String> scrapeUrl(String url) async {
+    try {
+      final response = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 10));
+      if (response.statusCode == 200) {
+        final document = html_parser.parse(response.body);
+        
+        // Remove scripts, styles, and other non-text elements
+        document.querySelectorAll('script, style, noscript, iframe, head, footer, nav, aside').forEach((e) => e.remove());
+        
+        // Extract text from paragraphs and significant tags
+        final elements = document.querySelectorAll('p, h1, h2, h3, h4, li, article');
+        final textParts = elements.map((e) => e.text.trim()).where((t) => t.isNotEmpty).toList();
+        
+        final combinedText = textParts.join('\n\n');
+        
+        // Limit text length to avoid context overflow (approx 12k tokens max)
+        if (combinedText.length > 30000) {
+          return '${combinedText.substring(0, 30000)}... [Content Truncated]';
+        }
+        return combinedText;
+      }
+      return "Failed to load page: ${response.statusCode}";
+    } catch (e) {
+      print('DEBUG: Scraping failed for $url: $e');
+      return "Error scraping URL: $e";
+    }
   }
 }
 

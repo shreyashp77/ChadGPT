@@ -5,8 +5,9 @@ import 'dart:async';
 class TypingIndicator extends StatefulWidget {
   final bool showElapsedTime;
   final String? modelName;  // Optional model name to show while loading
+  final String? statusText; // Optional specific status text (e.g., Deep Research status)
   
-  const TypingIndicator({super.key, this.showElapsedTime = true, this.modelName});
+  const TypingIndicator({super.key, this.showElapsedTime = true, this.modelName, this.statusText});
 
   @override
   State<TypingIndicator> createState() => _TypingIndicatorState();
@@ -82,6 +83,20 @@ class _TypingIndicatorState extends State<TypingIndicator> {
                   color: colorScheme.onSurface.withValues(alpha: 0.6),
                   fontSize: 12,
                   fontStyle: FontStyle.italic,
+                ),
+                overflow: TextOverflow.ellipsis,
+                maxLines: 1,
+              ),
+            ),
+          ] else if (widget.statusText != null) ...[
+            const SizedBox(width: 8),
+            Flexible(
+              child: Text(
+                widget.statusText!,
+                style: TextStyle(
+                  color: colorScheme.primary,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
                 ),
                 overflow: TextOverflow.ellipsis,
                 maxLines: 1,

@@ -264,7 +264,10 @@ class _ChatScreenState extends State<ChatScreen> {
                           // Show typing indicator with model name if loading
                           return Align(
                             alignment: Alignment.centerLeft,
-                            child: TypingIndicator(modelName: chatProvider.loadingModelName),
+                            child: TypingIndicator(
+                              modelName: chatProvider.loadingModelName,
+                              statusText: chatProvider.deepResearchStatus,
+                            ),
                           );
                       }
                       return MessageBubble(message: currentChat.messages[index]);
