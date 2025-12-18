@@ -525,6 +525,15 @@ class ChatProvider with ChangeNotifier, WidgetsBindingObserver {
     // 1. Add User Message IMMEDIATELY (Optimistic UI)
     _abortGeneration = false;
     
+    final isOpenRouter = _settingsProvider.settings.apiProvider == ApiProvider.openRouter;
+    final modelId = _settingsProvider.settings.selectedModelId;
+    final isFree = isOpenRouter && modelId != null && modelId.contains(':free');
+    
+    String? apiKeyLabel;
+    if (isOpenRouter) {
+      apiKeyLabel = _settingsProvider.openRouterKeyInfo?['label'] as String?;
+    }
+
     final userMsg = Message(
       id: const Uuid().v4(),
       chatId: _currentChat!.id,
@@ -533,6 +542,9 @@ class ChatProvider with ChangeNotifier, WidgetsBindingObserver {
       timestamp: DateTime.now(),
       attachmentPath: attachmentPath,
       attachmentType: attachmentType,
+      modelId: modelId,
+      isFree: isFree,
+      apiKeyLabel: apiKeyLabel,
     );
 
     _currentChat!.messages.add(userMsg);
@@ -1039,6 +1051,15 @@ class ChatProvider with ChangeNotifier, WidgetsBindingObserver {
       final modelId = _settingsProvider.settings.selectedModelId;
       _loadingModelName = modelId != null ? _settingsProvider.getModelDisplayName(modelId) : null;
     }
+    
+    final isOpenRouter = _settingsProvider.settings.apiProvider == ApiProvider.openRouter;
+    final activeModelId = _settingsProvider.settings.selectedModelId;
+    final isFreeModel = isOpenRouter && activeModelId != null && activeModelId.contains(':free');
+    String? apiKeyLabel;
+    if (isOpenRouter) {
+      apiKeyLabel = _settingsProvider.openRouterKeyInfo?['label'] as String?;
+    }
+
     notifyListeners();
 
     // Prepare for response
@@ -1101,6 +1122,9 @@ class ChatProvider with ChangeNotifier, WidgetsBindingObserver {
                 role: MessageRole.assistant,
                 content: '', // Start empty
                 timestamp: DateTime.now(),
+                modelId: activeModelId,
+                isFree: isFreeModel,
+                apiKeyLabel: apiKeyLabel,
               );
               targetChat.messages.add(assistantMsg);
               hasAddedMessage = true;
@@ -1157,6 +1181,9 @@ class ChatProvider with ChangeNotifier, WidgetsBindingObserver {
                 role: MessageRole.assistant,
                 content: fullResponse,
                 timestamp: DateTime.now(),
+                modelId: activeModelId,
+                isFree: isFreeModel,
+                apiKeyLabel: apiKeyLabel,
               );
           }
 

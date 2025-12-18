@@ -79,6 +79,29 @@ class ApiService {
     }
   }
 
+  // OpenRouter - Get API Key Info (usage, limits, tier)
+  Future<Map<String, dynamic>> getOpenRouterKeyInfo() async {
+    try {
+      final response = await http.get(
+        Uri.parse('$openRouterBaseUrl/key'),
+        headers: {
+          'Authorization': 'Bearer ${settings.openRouterApiKey}',
+        },
+      );
+      
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return data['data'] as Map<String, dynamic>;
+      } else if (response.statusCode == 401) {
+        throw Exception('Invalid API key');
+      } else {
+        throw Exception('Failed to load key info: ${response.statusCode}');
+      }
+    } catch (e) {
+      throw Exception('Failed to connect to OpenRouter: $e');
+    }
+  }
+
   // SearXNG - Check Connection (Head Request or Simple Search)
   Future<bool> checkSearxngConnection() async {
       try {

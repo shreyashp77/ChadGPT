@@ -29,6 +29,7 @@ class SettingsProvider with ChangeNotifier {
   
   bool _isInitialized = false;
   bool _isFirstRun = true;
+  Map<String, dynamic>? _openRouterKeyInfo;
 
   AppSettings get settings => _settings;
   List<String> get availableModels => _availableModels;
@@ -42,6 +43,7 @@ class SettingsProvider with ChangeNotifier {
   
   bool get isInitialized => _isInitialized;
   bool get isFirstRun => _isFirstRun;
+  Map<String, dynamic>? get openRouterKeyInfo => _openRouterKeyInfo;
 
   SettingsProvider() {
     _loadSettings();
@@ -260,8 +262,24 @@ class SettingsProvider with ChangeNotifier {
     }
     final service = ComfyuiService(_settings.comfyuiUrl!);
     _isComfyUiConnected = await service.checkConnection();
-    _isComfyUiConnected = await service.checkConnection();
     notifyListeners();
+  }
+
+  Future<void> fetchOpenRouterKeyInfo() async {
+    if (_settings.apiProvider != ApiProvider.openRouter || _settings.openRouterApiKey == null || _settings.openRouterApiKey!.isEmpty) {
+      _openRouterKeyInfo = null;
+      notifyListeners();
+      return;
+    }
+
+    try {
+      _openRouterKeyInfo = await _apiService.getOpenRouterKeyInfo();
+      notifyListeners();
+    } catch (e) {
+      print('DEBUG: Failed to fetch OpenRouter key info: $e');
+      _openRouterKeyInfo = null;
+      notifyListeners();
+    }
   }
 
 

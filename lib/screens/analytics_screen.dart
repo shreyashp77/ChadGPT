@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../providers/chat_provider.dart';
+import '../providers/settings_provider.dart';
 import '../services/database_service.dart';
+import '../models/app_settings.dart';
 import '../utils/theme.dart';
 
 class AnalyticsScreen extends StatefulWidget {
@@ -18,21 +20,37 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
   int _totalMessages = 0;
   int _totalPromptTokens = 0;
   int _totalCompletionTokens = 0;
+  int _freeMessagesToday = 0;
   bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
     _loadAnalytics();
+    _fetchKeyInfo();
+  }
+
+  Future<void> _fetchKeyInfo() async {
+    final settingsProvider = context.read<SettingsProvider>();
+    await settingsProvider.fetchOpenRouterKeyInfo();
   }
 
   Future<void> _loadAnalytics() async {
+    final settingsProvider = context.read<SettingsProvider>();
     final data = await _dbService.getAnalyticsData();
+    
+    int freeCount = 0;
+    final keyInfo = settingsProvider.openRouterKeyInfo;
+    if (keyInfo != null && keyInfo['label'] != null) {
+      freeCount = await _dbService.getFreeMessagesTodayCount(keyInfo['label']);
+    }
+
     if (mounted) {
       setState(() {
         _totalMessages = data['totalMessages'] ?? 0;
         _totalPromptTokens = data['promptTokens'] ?? 0;
         _totalCompletionTokens = data['completionTokens'] ?? 0;
+        _freeMessagesToday = freeCount;
         _isLoading = false;
       });
     }
@@ -41,6 +59,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
   @override
   Widget build(BuildContext context) {
     final chatProvider = context.watch<ChatProvider>();
+    final settingsProvider = context.watch<SettingsProvider>();
     final colorScheme = Theme.of(context).colorScheme;
     final chatCount = chatProvider.chats.length;
     
@@ -61,6 +80,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
             onPressed: () {
               setState(() => _isLoading = true);
               _loadAnalytics();
+              _fetchKeyInfo();
             },
           ),
         ],
@@ -72,6 +92,15 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // OpenRouter Quota section (if applicable)
+                if (settingsProvider.settings.apiProvider == ApiProvider.openRouter && 
+                    settingsProvider.openRouterKeyInfo != null) ...[
+                  _buildSectionTitle(context, 'OpenRouter Daily Quota'),
+                  const SizedBox(height: 12),
+                  _buildQuotaCard(context, settingsProvider.openRouterKeyInfo!),
+                  const SizedBox(height: 24),
+                ],
+
                 // Current Session Card
                 _buildSectionTitle(context, 'Current Session'),
                 const SizedBox(height: 12),
@@ -336,6 +365,112 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildQuotaCard(BuildContext context, Map<String, dynamic> keyInfo) {
+    final usageDaily = (keyInfo['usage_daily'] as num?)?.toDouble() ?? 0.0;
+    // OpenRouter daily limit for free tier is typically 50 requests if credits < 10, or 1000 if >= 10.
+    // However, the 'limit' field is in USD/credits. Usage_daily is also in credits.
+    // For free models, they cost 0 credits.
+    // The 50 message limit is a rate limit/quota, not strictly a credit limit.
+    // But we can show the daily usage (credits) and the tier info.
+    
+    final isFreeTier = keyInfo['is_free_tier'] == true;
+    final label = keyInfo['label'] ?? 'API Key';
+    
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1E1E1E),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.blue.withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      label,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      isFreeTier ? 'Free Tier' : 'Paid Tier',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: isFreeTier ? Colors.green : Colors.amber,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(Icons.vignette_outlined, color: Colors.blue),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              _buildQuotaStat('Used Today (Credits)', '\$${usageDaily.toStringAsFixed(4)}'),
+              if (keyInfo['limit'] != null)
+                _buildQuotaStat('Daily Limit', '\$${(keyInfo['limit'] as num).toStringAsFixed(2)}'),
+            ],
+          ),
+          if (isFreeTier) ...[
+             const SizedBox(height: 16),
+             _buildQuotaStat('Free Messages Today (approx)', '$_freeMessagesToday / 50'),
+             const SizedBox(height: 12),
+             const Divider(color: Colors.white10),
+             const SizedBox(height: 8),
+             const Row(
+               children: [
+                 Icon(Icons.info_outline, size: 14, color: Colors.blue),
+                 SizedBox(width: 8),
+                 Expanded(
+                   child: Text(
+                     'Free models are limited to 50 requests per day on the Free Tier.',
+                     style: TextStyle(fontSize: 11, color: Colors.white70),
+                   ),
+                 ),
+               ],
+             ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildQuotaStat(String label, String value) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(fontSize: 12, color: Colors.white60),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: const TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
+          ),
+        ),
+      ],
     );
   }
 

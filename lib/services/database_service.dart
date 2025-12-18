@@ -25,7 +25,7 @@ class DatabaseService {
     String path = join(await getDatabasesPath(), AppConstants.dbName);
     return await openDatabase(
       path,
-      version: 10, // Added local_models table
+      version: 11, // Added model_id, is_free, api_key_label to messages
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -61,6 +61,9 @@ class DatabaseService {
         comfyui_filename TEXT,
         is_truncated INTEGER DEFAULT 0,
         has_error INTEGER DEFAULT 0,
+        model_id TEXT,
+        is_free INTEGER DEFAULT 0,
+        api_key_label TEXT,
         FOREIGN KEY (chat_id) REFERENCES ${AppConstants.tableNameChats} (id) ON DELETE CASCADE
       )
     ''');
@@ -182,6 +185,21 @@ class DatabaseService {
            created_at TEXT NOT NULL
          )
        ''');
+     }
+    if (oldVersion < 11) {
+       // Add quota tracking columns
+       final columns = await db.rawQuery('PRAGMA table_info(${AppConstants.tableNameMessages})');
+       final columnNames = columns.map((c) => c['name']).toSet();
+       
+       if (!columnNames.contains('model_id')) {
+           await db.execute('ALTER TABLE ${AppConstants.tableNameMessages} ADD COLUMN model_id TEXT');
+       }
+       if (!columnNames.contains('is_free')) {
+           await db.execute('ALTER TABLE ${AppConstants.tableNameMessages} ADD COLUMN is_free INTEGER DEFAULT 0');
+       }
+       if (!columnNames.contains('api_key_label')) {
+           await db.execute('ALTER TABLE ${AppConstants.tableNameMessages} ADD COLUMN api_key_label TEXT');
+       }
     }
   }
 
@@ -317,6 +335,23 @@ class DatabaseService {
       'promptTokens': promptTokens,
       'completionTokens': completionTokens,
     };
+  }
+
+  /// Get the number of free messages sent today for a specific API key
+  Future<int> getFreeMessagesTodayCount(String apiKeyLabel) async {
+    final db = await database;
+    final now = DateTime.now();
+    final startOfDay = DateTime(now.year, now.month, now.day).toIso8601String();
+    
+    final result = await db.rawQuery('''
+      SELECT COUNT(*) as count 
+      FROM ${AppConstants.tableNameMessages}
+      WHERE is_free = 1 
+      AND api_key_label = ?
+      AND timestamp >= ?
+    ''', [apiKeyLabel, startOfDay]);
+    
+    return Sqflite.firstIntValue(result) ?? 0;
   }
 
   Future<void> insertMessage(Message message, bool isTempChat) async {

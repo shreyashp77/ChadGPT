@@ -28,6 +28,11 @@ class Message {
   
   // Error tracking (for retry functionality)
   final bool hasError;
+  
+  // Model info (for quota tracking)
+  final String? modelId;
+  final bool isFree;
+  final String? apiKeyLabel;
 
   Message({
     required this.id,
@@ -47,6 +52,9 @@ class Message {
     this.imageProgress = 0.0,
     this.isTruncated = false,
     this.hasError = false,
+    this.modelId,
+    this.isFree = false,
+    this.apiKeyLabel,
   });
 
   // Helper to get total tokens for this message
@@ -76,6 +84,9 @@ class Message {
     double? imageProgress,
     bool? isTruncated,
     bool? hasError,
+    String? modelId,
+    bool? isFree,
+    String? apiKeyLabel,
   }) {
     return Message(
       id: id ?? this.id,
@@ -99,6 +110,9 @@ class Message {
       imageProgress: imageProgress ?? this.imageProgress,
       isTruncated: isTruncated ?? this.isTruncated,
       hasError: hasError ?? this.hasError,
+      modelId: modelId ?? this.modelId,
+      isFree: isFree ?? this.isFree,
+      apiKeyLabel: apiKeyLabel ?? this.apiKeyLabel,
     );
   }
 
@@ -118,6 +132,9 @@ class Message {
       'comfyui_filename': comfyuiFilename,
       'is_truncated': isTruncated ? 1 : 0,
       'has_error': hasError ? 1 : 0,
+      'model_id': modelId,
+      'is_free': isFree ? 1 : 0,
+      'api_key_label': apiKeyLabel,
     };
   }
 
@@ -139,6 +156,9 @@ class Message {
       comfyuiFilename: map['comfyui_filename'],
       isTruncated: map['is_truncated'] == 1,
       hasError: map['has_error'] == 1,
+      modelId: map['model_id'],
+      isFree: map['is_free'] == 1,
+      apiKeyLabel: map['api_key_label'],
     );
   }
 }
