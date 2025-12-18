@@ -150,16 +150,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.05)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+            color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.08),
+            blurRadius: 15,
+            spreadRadius: -2,
+            offset: const Offset(0, 8),
           ),
         ],
       ),
-      child: ClipRRect(
+      child: Material(
+        color: Colors.transparent,
+        clipBehavior: Clip.antiAlias,
         borderRadius: BorderRadius.circular(20),
         child: child,
       ),
@@ -1597,11 +1599,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
         onTap: () {
           setState(() {
             _versionTapCount++;
-            if (_versionTapCount == 7) {
+            if (_versionTapCount == 7 && !_showDevSettings) {
               _showDevSettings = true;
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(content: Text('Developer settings enabled!'), duration: Duration(seconds: 1)),
               );
+            } else if (_versionTapCount > 7 && _versionTapCount % 7 == 0) {
+              _showFunnyEasterEggMessage();
             }
           });
         },
@@ -1614,6 +1618,35 @@ class _SettingsScreenState extends State<SettingsScreen> {
         trailing: Text(_version, style: TextStyle(color: isDark ? Colors.white54 : Colors.black54)),
       ),
     );
+  }
+
+  void _showFunnyEasterEggMessage() {
+    final messages = [
+      "Stop it, you're tickling me! 😂",
+      "You're already a developer, what more do you want? 🧐",
+      "Are you trying to find the source code of the universe? 🌌",
+      "Keep tapping, maybe I'll turn into a real AI. 🤖",
+      "I'm out of secrets, I swear! 🏳️",
+      "You have a very determined finger. 👆",
+      "System Error: User is too curious. 🚨",
+      "Did you know that 7 is a lucky number? You just used it twice. 🍀",
+      "Access Granted... just kidding. 😜",
+      "Please report this bug: 'User won't stop tapping'. 🐞",
+    ];
+    
+    final randomMsg = messages[DateTime.now().millisecond % messages.length];
+    
+    if (mounted) {
+      ScaffoldMessenger.of(context).clearSnackBars();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(randomMsg),
+          duration: const Duration(seconds: 1),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        ),
+      );
+    }
   }
 }
 
