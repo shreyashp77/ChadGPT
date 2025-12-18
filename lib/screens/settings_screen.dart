@@ -1,4 +1,6 @@
 import 'dart:io';
+import 'dart:convert';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -10,6 +12,8 @@ import '../services/local_model_service.dart';
 import '../utils/theme.dart';
 import 'package:http/http.dart' as http;
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:file_picker/file_picker.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -29,6 +33,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final _perplexityController = TextEditingController();
   final _comfyuiController = TextEditingController();
   String _version = '';
+  int _versionTapCount = 0;
+  bool _showDevSettings = false;
 
   @override
   void initState() {
@@ -99,10 +105,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 
                 const SizedBox(height: 24),
                 
-                _buildSectionHeader('Privacy & Security'),
+                 _buildSectionHeader('Privacy & Security'),
                 const SizedBox(height: 8),
                 _buildPrivacyCard(context, settings, settingsProvider),
                 
+                if (_showDevSettings) ...[
+                  const SizedBox(height: 24),
+                  _buildSectionHeader('Developer Settings'),
+                  const SizedBox(height: 8),
+                  _buildDevSettingsCard(context, settingsProvider),
+                ],
 
                 const SizedBox(height: 24),
 
@@ -759,7 +771,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       context: context,
       child: Column(
         children: [
-          ListTile(
+           ListTile(
             contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
             title: Text('Clear Chat History', style: TextStyle(color: textColor, fontWeight: FontWeight.w500)),
             subtitle: Text('Delete all messages and chats', style: TextStyle(color: subtitleColor, fontSize: 13)),
@@ -778,7 +790,87 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ),
     );
   }
+
+  Widget _buildDevSettingsCard(BuildContext context, SettingsProvider settingsProvider) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : Colors.black87;
+    final subtitleColor = isDark ? Colors.white54 : Colors.black54;
+
+    return _buildCard(
+      context: context,
+      child: Column(
+        children: [
+          ListTile(
+            contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+            title: Text('Export JSON', style: TextStyle(color: textColor, fontWeight: FontWeight.w500)),
+            subtitle: Text('Download all settings as a JSON file', style: TextStyle(color: subtitleColor, fontSize: 13)),
+            trailing: Icon(Icons.file_download, color: Theme.of(context).colorScheme.primary),
+            onTap: () => _handleJsonExport(context, settingsProvider),
+          ),
+          const Divider(height: 1, color: Colors.white10),
+          ListTile(
+            contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+            title: Text('Import JSON', style: TextStyle(color: textColor, fontWeight: FontWeight.w500)),
+            subtitle: Text('Restore settings from a JSON file', style: TextStyle(color: subtitleColor, fontSize: 13)),
+            trailing: Icon(Icons.file_upload, color: Theme.of(context).colorScheme.primary),
+            onTap: () => _handleJsonImport(context, settingsProvider),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _handleJsonExport(BuildContext context, SettingsProvider provider) async {
+    final jsonStr = provider.exportSettingsJson();
+    final bytes = Uint8List.fromList(utf8.encode(jsonStr));
+    
+    // Use share_plus to "download" or share the file
+    final xFile = XFile.fromData(
+      bytes,
+      name: 'chadgpt_settings.json',
+      mimeType: 'application/json',
+    );
+    
+    await Share.shareXFiles([xFile], text: 'ChadGPT Settings Export');
+  }
+
+  Future<void> _handleJsonImport(BuildContext context, SettingsProvider provider) async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['json'],
+      );
+
+      if (result != null && result.files.single.path != null) {
+        final file = File(result.files.single.path!);
+        final content = await file.readAsString();
+        
+        final success = await provider.importSettingsJson(content);
+        if (success && context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Settings imported successfully!'), backgroundColor: Colors.green),
+          );
+          // Refresh controllers if needed (though notifyListeners should help)
+          final settings = provider.settings;
+          _lmStudioController.text = settings.lmStudioUrl;
+          _searxngController.text = settings.searxngUrl;
+          _openRouterApiKeyController.text = settings.openRouterApiKey ?? '';
+        } else if (context.mounted) {
+           ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Failed to import settings. Invalid JSON format.'), backgroundColor: Colors.red),
+          );
+        }
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error importing file: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
   
+
   void _showClearConfirmation(BuildContext context, SettingsProvider provider, bool isFullWipe) {
       showDialog(
           context: context, 
@@ -1502,6 +1594,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
       context: context,
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+        onTap: () {
+          setState(() {
+            _versionTapCount++;
+            if (_versionTapCount == 7) {
+              _showDevSettings = true;
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Developer settings enabled!'), duration: Duration(seconds: 1)),
+              );
+            }
+          });
+        },
         leading: Container(
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.1), shape: BoxShape.circle),

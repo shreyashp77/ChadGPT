@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../models/app_settings.dart';
 import '../services/shared_prefs_service.dart';
@@ -283,6 +284,100 @@ class SettingsProvider with ChangeNotifier {
   }
 
 
+
+  String exportSettingsJson() {
+    final Map<String, dynamic> data = {
+      'version': '1.0',
+      'generatedAt': DateTime.now().toIso8601String(),
+      'openRouterApiKey': _settings.openRouterApiKey,
+      'openRouterApiKeys': _settings.openRouterApiKeys,
+      'openRouterApiKeyAliases': _settings.openRouterApiKeyAliases,
+      'braveApiKey': _settings.braveApiKey,
+      'bingApiKey': _settings.bingApiKey,
+      'googleApiKey': _settings.googleApiKey,
+      'googleCx': _settings.googleCx,
+      'perplexityApiKey': _settings.perplexityApiKey,
+      'lmStudioUrl': _settings.lmStudioUrl,
+      'searxngUrl': _settings.searxngUrl,
+      'comfyuiUrl': _settings.comfyuiUrl,
+      'apiProvider': _settings.apiProvider.toString().split('.').last,
+      'searchProvider': _settings.searchProvider.toString().split('.').last,
+      'isDarkMode': _settings.isDarkMode,
+      'themeColor': _settings.themeColor,
+      'useWebSearch': _settings.useWebSearch,
+      'modelAliases': _settings.modelAliases,
+      'selectedModelId': _settings.selectedModelId,
+      'selectedLocalModelId': _settings.selectedLocalModelId,
+      'localModelGpuLayers': _settings.localModelGpuLayers,
+      'localModelContextSize': _settings.localModelContextSize,
+    };
+    return jsonEncode(data);
+  }
+
+  Future<bool> importSettingsJson(String jsonStr) async {
+    try {
+      final Map<String, dynamic> data = jsonDecode(jsonStr);
+      
+      // Basic validation
+      if (!data.containsKey('openRouterApiKeys') && !data.containsKey('openRouterApiKey')) {
+        return false;
+      }
+
+      // Parse Provider Enums
+      ApiProvider? importedApiProvider;
+      if (data.containsKey('apiProvider')) {
+        importedApiProvider = ApiProvider.values.firstWhere(
+          (e) => e.toString().split('.').last == data['apiProvider'],
+          orElse: () => _settings.apiProvider,
+        );
+      }
+
+      SearchProvider? importedSearchProvider;
+      if (data.containsKey('searchProvider')) {
+        importedSearchProvider = SearchProvider.values.firstWhere(
+          (e) => e.toString().split('.').last == data['searchProvider'],
+          orElse: () => _settings.searchProvider,
+        );
+      }
+
+      _settings = _settings.copyWith(
+        openRouterApiKey: data['openRouterApiKey'] as String?,
+        openRouterApiKeys: data['openRouterApiKeys'] != null ? List<String>.from(data['openRouterApiKeys']) : null,
+        openRouterApiKeyAliases: data['openRouterApiKeyAliases'] != null ? Map<String, String>.from(data['openRouterApiKeyAliases']) : null,
+        braveApiKey: data['braveApiKey'] as String?,
+        bingApiKey: data['bingApiKey'] as String?,
+        googleApiKey: data['googleApiKey'] as String?,
+        googleCx: data['googleCx'] as String?,
+        perplexityApiKey: data['perplexityApiKey'] as String?,
+        lmStudioUrl: data['lmStudioUrl'] as String?,
+        searxngUrl: data['searxngUrl'] as String?,
+        comfyuiUrl: data['comfyuiUrl'] as String?,
+        apiProvider: importedApiProvider,
+        searchProvider: importedSearchProvider,
+        isDarkMode: data['isDarkMode'] as bool?,
+        themeColor: data['themeColor'] as int?,
+        useWebSearch: data['useWebSearch'] as bool?,
+        modelAliases: data['modelAliases'] != null ? Map<String, String>.from(data['modelAliases']) : null,
+        selectedModelId: data['selectedModelId'] as String?,
+        selectedLocalModelId: data['selectedLocalModelId'] as String?,
+        localModelGpuLayers: data['localModelGpuLayers'] as int?,
+        localModelContextSize: data['localModelContextSize'] as int?,
+      );
+
+      // Re-initialize API service
+      _apiService = ApiService(_settings);
+      
+      // Save everything
+      await _prefsService.saveSettings(_settings);
+      
+      notifyListeners();
+      fetchModels(forceRefresh: true);
+      return true;
+    } catch (e) {
+      print('DEBUG: Failed to import settings: $e');
+      return false;
+    }
+  }
 
   Future<void> clearAllData() async {
     await DatabaseService().clearAllData();
