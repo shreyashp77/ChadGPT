@@ -6,7 +6,7 @@ A powerful, privacy-focused AI chat client built with Flutter. ChadGPT runs loca
 
 ### 🤖 Multi-Provider Support
 - **LM Studio**: Connect to your local LLMs for complete privacy and offline capability
-- **OpenRouter**: Access a wide range of cloud models (filters for free models by default)
+- **OpenRouter**: Access a wide range of cloud models (filters for free and paid models)
 - **On-Device**: Run GGUF models directly on your phone – no internet, no server, truly private AI
 - Auto-detect functionality for discovering LM Studio instances on your local network
 
