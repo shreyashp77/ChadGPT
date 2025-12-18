@@ -15,6 +15,7 @@ class SharedPrefsService {
   static const String keyApiProvider = 'api_provider';
   static const String keyOpenRouterApiKey = 'openrouter_api_key';
   static const String keyOpenRouterApiKeyHistory = 'openrouter_api_key_history';
+  static const String keyOpenRouterApiKeyAliases = 'openrouter_api_key_aliases';
   
   // Search Provider Keys
   static const String keySearchProvider = 'search_provider';
@@ -45,7 +46,23 @@ class SharedPrefsService {
         try {
             final jsonStr = prefs.getString(keyModelAliases);
             if (jsonStr != null) {
-                aliases = Map<String, String>.from(json.decode(jsonStr));
+                final decoded = json.decode(jsonStr);
+                if (decoded is Map) {
+                    aliases = Map<String, String>.from(decoded);
+                }
+            }
+        } catch (_) {}
+    }
+
+    Map<String, String> apiKeyAliases = {};
+    if (prefs.containsKey(keyOpenRouterApiKeyAliases)) {
+        try {
+            final jsonStr = prefs.getString(keyOpenRouterApiKeyAliases);
+            if (jsonStr != null) {
+                final decoded = json.decode(jsonStr);
+                if (decoded is Map) {
+                    apiKeyAliases = Map<String, String>.from(decoded);
+                }
             }
         } catch (_) {}
     }
@@ -83,6 +100,7 @@ class SharedPrefsService {
       apiProvider: apiProvider,
       openRouterApiKey: await _getSecureKey(prefs, keyOpenRouterApiKey),
       openRouterApiKeys: await _getSecureList(keyOpenRouterApiKeyHistory),
+      openRouterApiKeyAliases: apiKeyAliases,
       searchProvider: searchProvider,
       braveApiKey: await _getSecureKey(prefs, keyBraveApiKey),
       bingApiKey: await _getSecureKey(prefs, keyBingApiKey),
@@ -162,6 +180,7 @@ class SharedPrefsService {
     // Save OpenRouter API key (SECURE)
     await _secureStorage.writeProtected(keyOpenRouterApiKey, settings.openRouterApiKey);
     await _saveSecureList(keyOpenRouterApiKeyHistory, settings.openRouterApiKeys);
+    await prefs.setString(keyOpenRouterApiKeyAliases, json.encode(settings.openRouterApiKeyAliases));
 
     // Save Search Settings
     await prefs.setString(keySearchProvider, settings.searchProvider.toString().split('.').last);

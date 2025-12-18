@@ -1016,6 +1016,7 @@ class _ChatScreenState extends State<ChatScreen> {
                       color: isLoaded ? Theme.of(listCtx).colorScheme.primary : Theme.of(listCtx).colorScheme.onSurface.withValues(alpha: 0.9),
                       fontWeight: isLoaded ? FontWeight.bold : FontWeight.w500,
                     ),
+                    softWrap: true,
                   ),
                   subtitle: Padding(
                     padding: const EdgeInsets.only(top: 2),
@@ -1143,7 +1144,6 @@ class _ChatScreenState extends State<ChatScreen> {
                         color: isSelected ? Theme.of(listCtx).colorScheme.primary : Theme.of(listCtx).colorScheme.onSurface.withValues(alpha: 0.9), 
                         fontWeight: isSelected ? FontWeight.bold : FontWeight.w500
                       ),
-                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
                   if (isFree)

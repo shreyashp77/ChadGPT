@@ -5,7 +5,6 @@ import 'package:flutter_animate/flutter_animate.dart';
 import '../providers/settings_provider.dart';
 import '../providers/chat_provider.dart';
 import '../models/app_settings.dart';
-import '../services/api_service.dart';
 import '../services/comfyui_service.dart';
 import '../services/local_model_service.dart';
 import '../utils/theme.dart';
@@ -156,7 +155,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Widget _buildProviderCard(BuildContext context, SettingsProvider settingsProvider) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final settings = settingsProvider.settings;
     final colorScheme = Theme.of(context).colorScheme;
     
@@ -354,7 +352,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Widget _buildConnectionCard(BuildContext context, SettingsProvider settingsProvider) {
     final settings = settingsProvider.settings;
-    final isOpenRouter = settings.apiProvider == ApiProvider.openRouter;
     final isLocalModel = settings.apiProvider == ApiProvider.localModel;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     
@@ -434,7 +431,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           if (mounted) {
                               String message;
                               if (settingsProvider.error == null) {
-                                  message = 'Connected! Found ${settingsProvider.availableModels.length} free models.';
+                                  message = 'Connected! Found ${settingsProvider.availableModels.length} models.';
                               } else {
                                 final cleanError = settingsProvider.error!.replaceAll('Exception: ', '');
                                 message = 'Error: $cleanError';
@@ -881,18 +878,31 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                                   size: 20,
                                               ),
                                               title: Text(
-                                                  maskedKey,
+                                                  provider.settings.openRouterApiKeyAliases[key] ?? maskedKey,
                                                   style: TextStyle(
                                                       fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                                                       color: isSelected ? Theme.of(context).colorScheme.primary : null,
                                                   ),
                                               ),
-                                              trailing: IconButton(
-                                                  icon: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 20),
-                                                  onPressed: () {
-                                                      provider.removeOpenRouterApiKeyFromHistory(key);
-                                                      if (history.length <= 1) Navigator.pop(ctx);
-                                                  },
+                                              subtitle: provider.settings.openRouterApiKeyAliases.containsKey(key) 
+                                                  ? Text(maskedKey, style: const TextStyle(fontSize: 11, color: Colors.grey))
+                                                  : null,
+                                              trailing: Row(
+                                                  mainAxisSize: MainAxisSize.min,
+                                                  children: [
+                                                      IconButton(
+                                                          icon: const Icon(Icons.edit_outlined, size: 18, color: Colors.grey),
+                                                          onPressed: () => _showRenameApiKeyDialog(context, provider, key),
+                                                          tooltip: 'Rename',
+                                                      ),
+                                                      IconButton(
+                                                          icon: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 20),
+                                                          onPressed: () {
+                                                              provider.removeOpenRouterApiKeyFromHistory(key);
+                                                              if (history.length <= 1) Navigator.pop(ctx);
+                                                          },
+                                                      ),
+                                                  ],
                                               ),
                                               onTap: () {
                                                   _openRouterApiKeyController.text = key;
@@ -909,6 +919,44 @@ class _SettingsScreenState extends State<SettingsScreen> {
               );
           },
       );
+  }
+
+  void _showRenameApiKeyDialog(BuildContext context, SettingsProvider provider, String key) {
+    final controller = TextEditingController(text: provider.settings.openRouterApiKeyAliases[key] ?? '');
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: isDark ? const Color(0xFF2C2C2C) : Colors.white,
+        title: const Text('Rename API Key', style: TextStyle(fontWeight: FontWeight.bold)),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: InputDecoration(
+            labelText: 'Nickname',
+            labelStyle: TextStyle(color: isDark ? Colors.white70 : Colors.black54),
+            hintText: 'Work, Personal, etc.',
+            hintStyle: TextStyle(color: isDark ? Colors.white24 : Colors.black26),
+            enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: isDark ? Colors.white24 : Colors.black12)),
+          ),
+          style: TextStyle(color: isDark ? Colors.white : Colors.black),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              provider.updateOpenRouterApiKeyAlias(key, controller.text);
+              Navigator.pop(ctx);
+            },
+            child: const Text('Save', style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildStatusDot(bool isConnected) {
