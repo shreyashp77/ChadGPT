@@ -1,3 +1,41 @@
+# v1.2.5 - The "Deep Insights & Polished" Update 🎨
+
+Take your chats further with our new Deep Research mode and a refreshed, cleaner user interface.
+
+## 🌟 New Features
+
+### 🔍 Deep Research Mode
+- **Multi-step Agent**: Our new research agent plans queries, searches the web, and reads multiple sources to synthesize a high-quality report.
+- **Citation Support**: Reports now include citations from across the web.
+- **Quick Access**: Just type `/research <query>` or select it from the attachment menu.
+- **Live Status Feed**: See what the agent is doing in real-time (Planning, Searching, Reading URL...).
+
+### 🛠️ Developer Tools (Easter Egg)
+- **Settings Backup**: Export all your API keys, model aliases, and app configurations to a JSON file.
+- **One-Tap Restore**: Import your settings back to get up and running instantly on any device.
+- **How to Enable**: Tap the "Version" tile in About section 7 times to reveal the hidden Developer Settings.
+
+### 📊 Advanced Analytics & Paid Models
+- **Paid Model Support**: Full support for paid OpenRouter models with real-time cost tracking.
+- **Per-Key Usage**: Analytics now tracks message counts and costs uniquely for *each* API key.
+- **Daily Quotas**: Visual tracking for daily free model limits (50/day) per key.
+- **Smart Dashboard**: A completely refined analytics UI that adapts to your currently active key.
+
+### ✨ Premium UI Experience
+- **Staggered Animations**: All attachment menu options now glide in with a beautiful, staggered animation.
+- **Refined Layout**: Re-positioned Deep Research and Web Search options for quick, intuitive access.
+
+## 🎯 UI Refinements
+- **Borderless Settings Cards**: A cleaner, more modern look for the settings screen with enhanced shadows.
+- **Material Polish**: Fixed splash artifacts and improved tap feedback across the entire app.
+- **Themed Research Pill**: The research indicator now perfectly matches your app's accent color.
+
+## 🐛 Bug Fixes
+- Fixed a concurrency issue where research status updates would occasionally crash the app.
+- Improved immutable state handling for long-running assistant tasks.
+
+---
+
 # v1.2.0 - The "Your Phone, Your AI" Update 📱
 
 Run AI models **directly on your phone** — no internet, no servers, just you and your private AI.
