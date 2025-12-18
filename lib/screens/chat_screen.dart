@@ -776,83 +776,200 @@ class _ChatScreenState extends State<ChatScreen> {
       final isLocalProvider = settings.settings.apiProvider == ApiProvider.localModel;
       final localModelService = LocalModelService();
       
+      String searchQuery = '';
+      String selectedFilter = 'All'; // 'All', 'Free', 'Paid'
+
       showModalBottomSheet(
           context: this.context,
           backgroundColor: Colors.transparent,
           isScrollControlled: true,
-          builder: (ctx) => Container(
-              margin: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                  color: Theme.of(ctx).colorScheme.surfaceContainer,
-                  borderRadius: BorderRadius.circular(24),
-                  border: Border.all(color: Theme.of(ctx).colorScheme.onSurface.withValues(alpha: 0.1)),
-                  boxShadow: [
-                      BoxShadow(color: Colors.black.withValues(alpha: 0.2), blurRadius: 20, offset: const Offset(0, 10))
-                  ]
-              ),
-              child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                      Padding(
-                        padding: const EdgeInsets.all(16.0),
-                        child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                                Row(
+          barrierColor: Colors.black.withValues(alpha: 0.7),
+          builder: (ctx) => StatefulBuilder(
+            builder: (context, setState) {
+              return Container(
+                  height: MediaQuery.of(ctx).size.height * 0.75,
+                  decoration: BoxDecoration(
+                      color: Theme.of(ctx).colorScheme.surface.withValues(alpha: 0.9),
+                      borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+                      border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+                  ),
+                  child: ClipRRect(
+                    borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+                    child: BackdropFilter(
+                      filter: ui.ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+                      child: Column(
+                          children: [
+                              // Drag Handle
+                              Center(
+                                child: Container(
+                                  margin: const EdgeInsets.symmetric(vertical: 12),
+                                  width: 40,
+                                  height: 4,
+                                  decoration: BoxDecoration(
+                                    color: Theme.of(ctx).colorScheme.onSurface.withValues(alpha: 0.2),
+                                    borderRadius: BorderRadius.circular(2),
+                                  ),
+                                ),
+                              ),
+
+                              Padding(
+                                padding: const EdgeInsets.fromLTRB(24, 8, 24, 16),
+                                child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                     children: [
-                                        Icon(isLocalProvider ? Icons.smartphone : Icons.auto_awesome, color: Theme.of(ctx).colorScheme.onSurface, size: 20),
-                                        const SizedBox(width: 8),
-                                        Text(isLocalProvider ? 'Local Models' : 'Select Model', style: TextStyle(color: Theme.of(ctx).colorScheme.onSurface, fontSize: 18, fontWeight: FontWeight.bold)),
+                                        Row(
+                                            children: [
+                                                Container(
+                                                  padding: const EdgeInsets.all(8),
+                                                  decoration: BoxDecoration(
+                                                    color: Theme.of(ctx).colorScheme.primary.withValues(alpha: 0.1),
+                                                    borderRadius: BorderRadius.circular(12),
+                                                  ),
+                                                  child: Icon(
+                                                    isLocalProvider ? Icons.smartphone : Icons.auto_awesome, 
+                                                    color: Theme.of(ctx).colorScheme.primary, 
+                                                    size: 20
+                                                  ),
+                                                ),
+                                                const SizedBox(width: 12),
+                                                Text(
+                                                  isLocalProvider ? 'Local Models' : 'Select Model', 
+                                                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)
+                                                ),
+                                            ],
+                                        ),
+                                        if (!isLocalProvider)
+                                          IconButton(
+                                            icon: Icon(Icons.refresh, color: Theme.of(ctx).colorScheme.onSurface.withValues(alpha: 0.7)), 
+                                            onPressed: () {
+                                              HapticFeedback.mediumImpact();
+                                              settings.fetchModels();
+                                              Navigator.pop(ctx);
+                                              _showGrokModelSelector(this.context); 
+                                          }),
                                     ],
                                 ),
-                                if (!isLocalProvider)
-                                  IconButton(icon: Icon(Icons.refresh, color: Theme.of(ctx).colorScheme.onSurface.withValues(alpha: 0.7)), onPressed: () {
-                                      settings.fetchModels();
-                                      Navigator.pop(ctx);
-                                      _showGrokModelSelector(this.context); 
-                                  }),
-                            ],
-                        ),
+                              ),
+                              
+                              // Premium Search Box
+                              Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 24),
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    color: Theme.of(ctx).colorScheme.onSurface.withValues(alpha: 0.05),
+                                    borderRadius: BorderRadius.circular(20),
+                                    border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+                                  ),
+                                  child: TextField(
+                                    onChanged: (value) => setState(() => searchQuery = value),
+                                    style: const TextStyle(fontSize: 15),
+                                    decoration: InputDecoration(
+                                      hintText: 'Search models...',
+                                      hintStyle: TextStyle(color: Theme.of(ctx).colorScheme.onSurface.withValues(alpha: 0.3)),
+                                      prefixIcon: Icon(Icons.search, size: 20, color: Theme.of(ctx).colorScheme.onSurface.withValues(alpha: 0.5)),
+                                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                                      border: InputBorder.none,
+                                    ),
+                                  ),
+                                ),
+                              ),
+
+                              // Animated Filter Tabs (Only for Cloud Models)
+                              if (!isLocalProvider)
+                              Padding(
+                                padding: const EdgeInsets.fromLTRB(24, 16, 24, 8),
+                                child: Container(
+                                  padding: const EdgeInsets.all(4),
+                                  decoration: BoxDecoration(
+                                    color: Theme.of(ctx).colorScheme.onSurface.withValues(alpha: 0.05),
+                                    borderRadius: BorderRadius.circular(16),
+                                  ),
+                                  child: Row(
+                                    children: ['All', 'Free', 'Paid'].map((filter) {
+                                      final isSelected = selectedFilter == filter;
+                                      return Expanded(
+                                        child: GestureDetector(
+                                          onTap: () {
+                                            HapticFeedback.selectionClick();
+                                            setState(() => selectedFilter = filter);
+                                          },
+                                          child: AnimatedContainer(
+                                            duration: const Duration(milliseconds: 200),
+                                            curve: Curves.easeInOut,
+                                            padding: const EdgeInsets.symmetric(vertical: 8),
+                                            decoration: BoxDecoration(
+                                              color: isSelected ? Theme.of(ctx).colorScheme.primary : Colors.transparent,
+                                              borderRadius: BorderRadius.circular(12),
+                                              boxShadow: isSelected ? [
+                                                BoxShadow(
+                                                  color: Theme.of(ctx).colorScheme.primary.withValues(alpha: 0.3),
+                                                  blurRadius: 8,
+                                                  offset: const Offset(0, 2),
+                                                )
+                                              ] : null,
+                                            ),
+                                            child: Center(
+                                              child: Text(
+                                                filter, 
+                                                style: TextStyle(
+                                                  fontSize: 13, 
+                                                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                                  color: isSelected ? Colors.white : Theme.of(ctx).colorScheme.onSurface.withValues(alpha: 0.6),
+                                                )
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      );
+                                    }).toList(),
+                                  ),
+                                ),
+                              ),
+
+                              const SizedBox(height: 12),
+                              
+                              // List Area
+                              Expanded(
+                                child: isLocalProvider
+                                  ? _buildLocalModelsList(ctx, localModelService, searchQuery)
+                                  : _buildCloudModelsList(ctx, settings, currentModel, searchQuery, selectedFilter),
+                              ),
+                          ],
                       ),
-                      Divider(color: Theme.of(ctx).colorScheme.onSurface.withValues(alpha: 0.1), height: 1),
-                      // Show local models or cloud models based on provider
-                      if (isLocalProvider)
-                        _buildLocalModelsList(ctx, localModelService)
-                      else
-                        _buildCloudModelsList(ctx, settings, currentModel),
-                      const SizedBox(height: 8),
-                  ],
-              ),
+                    ),
+                  ),
+              );
+            },
           ),
       );
   }
   
-  Widget _buildLocalModelsList(BuildContext ctx, LocalModelService localModelService) {
+  Widget _buildLocalModelsList(BuildContext ctx, LocalModelService localModelService, String searchQuery) {
     return FutureBuilder<List<LocalModel>>(
       future: _getDownloadedLocalModels(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Padding(
-            padding: EdgeInsets.all(32),
-            child: CircularProgressIndicator(),
-          );
+          return const Center(child: CircularProgressIndicator());
         }
         
-        final models = snapshot.data ?? [];
+        var models = snapshot.data ?? [];
+        if (searchQuery.isNotEmpty) {
+          models = models.where((m) => m.name.toLowerCase().contains(searchQuery.toLowerCase())).toList();
+        }
+
         final loadedModelId = localModelService.loadedModel?.id;
         
         if (models.isEmpty) {
-          return Padding(
-            padding: const EdgeInsets.all(32),
+          return Center(
             child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.download_outlined, size: 48, color: Theme.of(ctx).colorScheme.onSurface.withValues(alpha: 0.3)),
+                Icon(Icons.cloud_off, size: 48, color: Theme.of(ctx).colorScheme.onSurface.withValues(alpha: 0.1)),
                 const SizedBox(height: 16),
                 Text(
                   'No models downloaded',
-                  style: TextStyle(color: Theme.of(ctx).colorScheme.onSurface.withValues(alpha: 0.5)),
+                  style: TextStyle(color: Theme.of(ctx).colorScheme.onSurface.withValues(alpha: 0.3)),
                 ),
-                const SizedBox(height: 8),
                 TextButton(
                   onPressed: () {
                     Navigator.pop(ctx);
@@ -865,99 +982,69 @@ class _ChatScreenState extends State<ChatScreen> {
           );
         }
         
-        return ConstrainedBox(
-          constraints: BoxConstraints(maxHeight: MediaQuery.of(ctx).size.height * 0.4),
-          child: ListView.builder(
-            shrinkWrap: true,
-            padding: const EdgeInsets.symmetric(vertical: 8),
+        return ListView.builder(
+            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
             itemCount: models.length,
             itemBuilder: (listCtx, index) {
               final model = models[index];
               final isLoaded = model.id == loadedModelId;
               
-              return ListTile(
-                title: Text(
-                  model.name,
-                  style: TextStyle(
-                    color: isLoaded ? Theme.of(listCtx).colorScheme.primary : Theme.of(listCtx).colorScheme.onSurface.withValues(alpha: 0.7),
-                    fontWeight: isLoaded ? FontWeight.bold : FontWeight.normal,
+              return Container(
+                margin: const EdgeInsets.only(bottom: 8),
+                decoration: BoxDecoration(
+                  color: isLoaded ? Theme.of(listCtx).colorScheme.primary.withValues(alpha: 0.08) : Colors.transparent,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: isLoaded ? Theme.of(listCtx).colorScheme.primary.withValues(alpha: 0.2) : Colors.transparent,
                   ),
                 ),
-                subtitle: Text(
-                  '${model.quantization ?? ''} • ${model.sizeString}',
-                  style: TextStyle(color: Theme.of(listCtx).colorScheme.onSurface.withValues(alpha: 0.3), fontSize: 10),
-                ),
-                leading: isLoaded 
-                  ? Icon(Icons.check_circle, color: Theme.of(listCtx).colorScheme.primary) 
-                  : Icon(Icons.circle_outlined, color: Theme.of(listCtx).colorScheme.onSurface.withValues(alpha: 0.3)),
-                trailing: isLoaded
-                  ? TextButton.icon(
-                      icon: const Icon(Icons.eject, size: 16, color: Colors.orange),
-                      label: const Text('Unload', style: TextStyle(color: Colors.orange, fontSize: 12)),
-                      onPressed: () async {
-                        await localModelService.unloadModel();
-                        Navigator.pop(ctx);
-                        if (this.mounted) {
-                          ScaffoldMessenger.of(this.context).showSnackBar(
-                            SnackBar(
-                              content: const Text('Model unloaded', textAlign: TextAlign.center), 
-                              backgroundColor: Colors.orange,
-                              behavior: SnackBarBehavior.floating,
-                              margin: const EdgeInsets.only(bottom: 100, left: 20, right: 20),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
-                              duration: const Duration(milliseconds: 1500),
-                            ),
-                          );
-                        }
-                      },
-                    )
-                  : null,
-                onTap: () async {
-                  Navigator.pop(ctx);
-                  if (!isLoaded) {
-                    // Load the model
-                    ScaffoldMessenger.of(this.context).showSnackBar(
-                      SnackBar(
-                        content: Text('Loading ${model.name}...', textAlign: TextAlign.center),
-                        behavior: SnackBarBehavior.floating,
-                        margin: const EdgeInsets.only(bottom: 100, left: 20, right: 20),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
-                        duration: const Duration(milliseconds: 1500),
-                      ),
-                    );
-                    try {
+                child: ListTile(
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                  leading: Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: Theme.of(listCtx).colorScheme.onSurface.withValues(alpha: 0.03),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Center(child: _getModelIcon(model.id, size: 24)),
+                  ),
+                  title: Text(
+                    model.name,
+                    style: TextStyle(
+                      fontSize: 15,
+                      color: isLoaded ? Theme.of(listCtx).colorScheme.primary : Theme.of(listCtx).colorScheme.onSurface.withValues(alpha: 0.9),
+                      fontWeight: isLoaded ? FontWeight.bold : FontWeight.w500,
+                    ),
+                  ),
+                  subtitle: Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Text(
+                      '${model.quantization ?? 'Unknown'} • ${model.sizeString}',
+                      style: TextStyle(color: Theme.of(listCtx).colorScheme.onSurface.withValues(alpha: 0.3), fontSize: 11),
+                    ),
+                  ),
+                  trailing: isLoaded
+                    ? IconButton(
+                        icon: const Icon(Icons.eject_rounded, size: 20, color: Colors.orange),
+                        onPressed: () async {
+                          HapticFeedback.heavyImpact();
+                          await localModelService.unloadModel();
+                          Navigator.pop(ctx);
+                        },
+                      )
+                    : Icon(Icons.circle_outlined, color: Theme.of(listCtx).colorScheme.onSurface.withValues(alpha: 0.1), size: 20),
+                  onTap: () async {
+                    HapticFeedback.mediumImpact();
+                    Navigator.pop(ctx);
+                    if (!isLoaded) {
                       await localModelService.loadModel(model);
-                      if (mounted) {
-                        ScaffoldMessenger.of(this.context).showSnackBar(
-                          SnackBar(
-                            content: Text('${model.name} loaded!', textAlign: TextAlign.center), 
-                            backgroundColor: Colors.green,
-                            behavior: SnackBarBehavior.floating,
-                            margin: const EdgeInsets.only(bottom: 100, left: 20, right: 20),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
-                            duration: const Duration(seconds: 2),
-                          ),
-                        );
-                      }
-                    } catch (e) {
-                      if (mounted) {
-                        ScaffoldMessenger.of(this.context).showSnackBar(
-                          SnackBar(
-                            content: Text('Failed to load: $e', textAlign: TextAlign.center), 
-                            backgroundColor: Colors.red,
-                            behavior: SnackBarBehavior.floating,
-                            margin: const EdgeInsets.only(bottom: 100, left: 20, right: 20),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
-                          ),
-                        );
-                      }
                     }
-                  }
-                },
-              );
+                  },
+                ),
+              ).animate(delay: (index * 30).ms).fadeIn(duration: 300.ms).slideX(begin: 0.1, end: 0, curve: Curves.easeOutCubic);
             },
-          ),
-        );
+          );
       },
     );
   }
@@ -969,34 +1056,138 @@ class _ChatScreenState extends State<ChatScreen> {
     return models.where((m) => m.status == LocalModelStatus.downloaded || m.status == LocalModelStatus.loaded).toList();
   }
   
-  Widget _buildCloudModelsList(BuildContext ctx, SettingsProvider settings, String? currentModel) {
-    return ConstrainedBox(
-      constraints: BoxConstraints(maxHeight: MediaQuery.of(ctx).size.height * 0.4),
-      child: ListView.builder(
-        shrinkWrap: true,
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        itemCount: settings.availableModels.length,
+  Widget _buildCloudModelsList(BuildContext ctx, SettingsProvider settings, String? currentModel, String searchQuery, String selectedFilter) {
+    var modelIds = settings.availableModels;
+    final isOpenRouter = settings.settings.apiProvider == ApiProvider.openRouter;
+    
+    // Create a combined list of model info for easier filtering
+    List<Map<String, dynamic>> modelInfos = modelIds.map((id) {
+      if (isOpenRouter) {
+        final orModel = settings.openRouterModels.firstWhere(
+          (m) => m['id'] == id,
+          orElse: () => {'id': id, 'name': id.split('/').last, 'is_free': false},
+        );
+        return Map<String, dynamic>.from(orModel);
+      } else {
+        return {'id': id, 'name': id.split('/').last, 'is_free': false};
+      }
+    }).toList();
+
+    // 1. Search Filter
+    if (searchQuery.isNotEmpty) {
+      final query = searchQuery.toLowerCase();
+      modelInfos = modelInfos.where((m) {
+        final name = (m['name'] as String? ?? '').toLowerCase();
+        final id = (m['id'] as String? ?? '').toLowerCase();
+        return name.contains(query) || id.contains(query);
+      }).toList();
+    }
+
+    // 2. Category Filter (OpenRouter only)
+    if (isOpenRouter && selectedFilter != 'All') {
+      final wantFree = selectedFilter == 'Free';
+      modelInfos = modelInfos.where((m) => (m['is_free'] as bool? ?? false) == wantFree).toList();
+    }
+
+    if (modelInfos.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.search_off, size: 48, color: Theme.of(ctx).colorScheme.onSurface.withValues(alpha: 0.1)),
+            const SizedBox(height: 16),
+            Text('No models found', style: TextStyle(color: Theme.of(ctx).colorScheme.onSurface.withValues(alpha: 0.3))),
+          ],
+        ),
+      );
+    }
+
+    return ListView.builder(
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+        itemCount: modelInfos.length,
         itemBuilder: (listCtx, index) {
-          final modelId = settings.availableModels[index];
+          final model = modelInfos[index];
+          final modelId = model['id'] as String;
           final isSelected = modelId == currentModel;
           final displayName = settings.getModelDisplayName(modelId);
+          final isFree = isOpenRouter && (model['is_free'] as bool? ?? false);
           
-          return ListTile(
-            title: Text(displayName, style: TextStyle(color: isSelected ? Theme.of(listCtx).colorScheme.primary : Theme.of(listCtx).colorScheme.onSurface.withValues(alpha: 0.7), fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
-            subtitle: displayName != modelId.split('/').last ? Text(modelId.split('/').last, style: TextStyle(color: Theme.of(listCtx).colorScheme.onSurface.withValues(alpha: 0.3), fontSize: 10)) : null,
-            leading: isSelected ? Icon(Icons.check_circle, color: Theme.of(listCtx).colorScheme.primary) : Icon(Icons.circle_outlined, color: Theme.of(listCtx).colorScheme.onSurface.withValues(alpha: 0.3)),
-            trailing: IconButton(
-              icon: Icon(Icons.edit, size: 16, color: Theme.of(listCtx).colorScheme.onSurface.withValues(alpha: 0.3)),
-              onPressed: () => _showRenameDialog(this.context, modelId, displayName),
+          return Container(
+            margin: const EdgeInsets.only(bottom: 8),
+            decoration: BoxDecoration(
+              color: isSelected ? Theme.of(listCtx).colorScheme.primary.withValues(alpha: 0.08) : Colors.transparent,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: isSelected ? Theme.of(listCtx).colorScheme.primary.withValues(alpha: 0.2) : Colors.transparent,
+              ),
             ),
-            onTap: () {
-              settings.updateSettings(selectedModelId: modelId);
-              Navigator.pop(ctx);
-            },
-          );
+            child: ListTile(
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              leading: Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: Theme.of(listCtx).colorScheme.onSurface.withValues(alpha: 0.03),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Center(child: _getModelIcon(modelId, size: 24)),
+              ),
+              title: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      displayName, 
+                      style: TextStyle(
+                        fontSize: 15,
+                        color: isSelected ? Theme.of(listCtx).colorScheme.primary : Theme.of(listCtx).colorScheme.onSurface.withValues(alpha: 0.9), 
+                        fontWeight: isSelected ? FontWeight.bold : FontWeight.w500
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  if (isFree)
+                    Container(
+                      margin: const EdgeInsets.only(left: 8),
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [Colors.green.shade400, Colors.green.shade600],
+                        ),
+                        borderRadius: BorderRadius.circular(8),
+                        boxShadow: [
+                          BoxShadow(color: Colors.green.withValues(alpha: 0.2), blurRadius: 4, offset: const Offset(0, 2))
+                        ],
+                      ),
+                      child: const Text(
+                        'FREE', 
+                        style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 0.5)
+                      ),
+                    ),
+                ],
+              ),
+              subtitle: Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: Text(
+                  modelId.split('/').last, 
+                  style: TextStyle(color: Theme.of(listCtx).colorScheme.onSurface.withValues(alpha: 0.4), fontSize: 11)
+                ),
+              ),
+              trailing: isSelected 
+                ? Icon(Icons.check_circle, color: Theme.of(listCtx).colorScheme.primary, size: 20)
+                : IconButton(
+                    icon: Icon(Icons.edit_note, size: 20, color: Theme.of(listCtx).colorScheme.onSurface.withValues(alpha: 0.3)),
+                    onPressed: () => _showRenameDialog(this.context, modelId, displayName),
+                  ),
+              onTap: () {
+                HapticFeedback.lightImpact();
+                settings.updateSettings(selectedModelId: modelId);
+                Navigator.pop(ctx);
+              },
+            ),
+          ).animate(delay: (index * 30).ms).fadeIn(duration: 300.ms).slideX(begin: 0.1, end: 0, curve: Curves.easeOutCubic);
         },
-      ),
-    );
+      );
   }
 
   void _showPersonaSelector(BuildContext context) {
@@ -1329,5 +1520,39 @@ class _ChatScreenState extends State<ChatScreen> {
           );
        }
     }
+  }
+
+  Widget _getModelIcon(String modelId, {double size = 20, Color? color}) {
+    final id = modelId.toLowerCase();
+    IconData iconData = Icons.auto_awesome;
+    Color iconColor = color ?? Colors.grey;
+
+    if (id.contains('google/') || id.contains('gemini')) {
+      iconData = Icons.lens_blur; // Proxy for Google Gemini
+      if (color == null) iconColor = Colors.blue;
+    } else if (id.contains('mistral')) {
+      iconData = Icons.cyclone; // Fixed capitalization
+      if (color == null) iconColor = Colors.orange;
+    } else if (id.contains('meta/') || id.contains('llama')) {
+      iconData = Icons.all_inclusive;
+      if (color == null) iconColor = Colors.blueAccent;
+    } else if (id.contains('anthropic/') || id.contains('claude')) {
+      iconData = Icons.spa;
+      if (color == null) iconColor = const Color(0xFFD97757);
+    } else if (id.contains('openai/') || id.contains('gpt')) {
+      iconData = Icons.bolt;
+      if (color == null) iconColor = const Color(0xFF10A37F);
+    } else if (id.contains('deepseek')) {
+      iconData = Icons.search;
+      if (color == null) iconColor = Colors.purpleAccent;
+    } else if (id.contains('nvidia')) {
+      iconData = Icons.memory;
+      if (color == null) iconColor = Colors.greenAccent;
+    } else if (id.contains('microsoft') || id.contains('phi')) {
+      iconData = Icons.window;
+      if (color == null) iconColor = Colors.lightBlue;
+    }
+
+    return Icon(iconData, size: size, color: iconColor);
   }
 }

@@ -417,6 +417,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     labelTrailing: openRouterStatusDot,
                     obscureText: true,
                     hintText: 'sk-or-...',
+                    suffixIcon: IconButton(
+                        icon: const Icon(Icons.history, size: 20),
+                        onPressed: () => _showApiKeyHistory(context, settingsProvider),
+                        tooltip: 'API Key History',
+                    ),
                 ),
                  const SizedBox(height: 16),
                   SizedBox(
@@ -462,6 +467,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             ),
                     ),
                   ),
+
+                  if (settingsProvider.isOpenRouterConnected && settings.openRouterApiKey != null && !settings.openRouterApiKeys.contains(settings.openRouterApiKey))
+                    Padding(
+                        padding: const EdgeInsets.only(top: 12),
+                        child: SizedBox(
+                            width: double.infinity,
+                            child: TextButton.icon(
+                                onPressed: () {
+                                    settingsProvider.addOpenRouterApiKeyToHistory(settings.openRouterApiKey!);
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                        const SnackBar(content: Text('API Key saved to history'))
+                                    );
+                                },
+                                icon: const Icon(Icons.save, size: 18),
+                                label: const Text('Save this key to history'),
+                                style: TextButton.styleFrom(
+                                    foregroundColor: Theme.of(context).colorScheme.primary,
+                                ),
+                            ),
+                        ),
+                    ),
               ],
               
               const SizedBox(height: 24),
@@ -619,7 +645,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     TextEditingController controller, 
     IconData icon, 
     Function(String) onChanged, 
-    {Widget? labelTrailing, bool obscureText = false, String? hintText}
+    {Widget? labelTrailing, bool obscureText = false, String? hintText, Widget? suffixIcon}
   ) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final textColor = isDark ? Colors.white : Colors.black87;
@@ -647,6 +673,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           obscureText: obscureText,
           decoration: InputDecoration(
             prefixIcon: Icon(icon, color: isDark ? Colors.white54 : Colors.black45, size: 20),
+            suffixIcon: suffixIcon,
             filled: true,
             fillColor: fillColor,
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
@@ -792,6 +819,95 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
               ],
           )
+      );
+  }
+
+  void _showApiKeyHistory(BuildContext context, SettingsProvider provider) {
+      final isDark = Theme.of(context).brightness == Brightness.dark;
+      final history = provider.settings.openRouterApiKeys;
+
+      showModalBottomSheet(
+          context: context,
+          backgroundColor: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+          shape: const RoundedRectangleBorder(
+              borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          builder: (ctx) {
+              return SafeArea(
+                  child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                          Padding(
+                              padding: const EdgeInsets.all(20),
+                              child: Row(
+                                  children: [
+                                      const Icon(Icons.history, color: Colors.grey),
+                                      const SizedBox(width: 12),
+                                      const Text(
+                                          'API Key History',
+                                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                                      ),
+                                      const Spacer(),
+                                      IconButton(
+                                          onPressed: () => Navigator.pop(ctx),
+                                          icon: const Icon(Icons.close),
+                                      ),
+                                  ],
+                              ),
+                          ),
+                          if (history.isEmpty)
+                              const Padding(
+                                  padding: EdgeInsets.symmetric(vertical: 40),
+                                  child: Center(
+                                      child: Text('No saved API keys yet', style: TextStyle(color: Colors.grey)),
+                                  ),
+                              )
+                          else
+                              Flexible(
+                                  child: ListView.builder(
+                                      shrinkWrap: true,
+                                      itemCount: history.length,
+                                      itemBuilder: (context, index) {
+                                          final key = history[index];
+                                          final maskedKey = key.length > 12 
+                                              ? '${key.substring(0, 8)}...${key.substring(key.length - 4)}'
+                                              : key;
+                                          final isSelected = provider.settings.openRouterApiKey == key;
+
+                                          return ListTile(
+                                              leading: Icon(
+                                                  Icons.vpn_key, 
+                                                  color: isSelected ? Theme.of(context).colorScheme.primary : Colors.grey,
+                                                  size: 20,
+                                              ),
+                                              title: Text(
+                                                  maskedKey,
+                                                  style: TextStyle(
+                                                      fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                                      color: isSelected ? Theme.of(context).colorScheme.primary : null,
+                                                  ),
+                                              ),
+                                              trailing: IconButton(
+                                                  icon: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 20),
+                                                  onPressed: () {
+                                                      provider.removeOpenRouterApiKeyFromHistory(key);
+                                                      if (history.length <= 1) Navigator.pop(ctx);
+                                                  },
+                                              ),
+                                              onTap: () {
+                                                  _openRouterApiKeyController.text = key;
+                                                  provider.updateSettings(openRouterApiKey: key);
+                                                  Navigator.pop(ctx);
+                                              },
+                                          );
+                                      },
+                                  ),
+                              ),
+                          const SizedBox(height: 20),
+                      ],
+                  ),
+              );
+          },
       );
   }
 

@@ -11,6 +11,7 @@ class AppSettings {
   Map<String, String> modelAliases;
   ApiProvider apiProvider;
   String? openRouterApiKey;
+  List<String> openRouterApiKeys;
   
   // Search Provider Settings
   SearchProvider searchProvider;
@@ -38,6 +39,7 @@ class AppSettings {
     this.modelAliases = const {},
     this.apiProvider = ApiProvider.lmStudio,
     this.openRouterApiKey,
+    this.openRouterApiKeys = const [],
     this.searchProvider = SearchProvider.searxng,
     this.braveApiKey,
     this.bingApiKey,
@@ -61,6 +63,7 @@ class AppSettings {
     Map<String, String>? modelAliases,
     ApiProvider? apiProvider,
     String? openRouterApiKey,
+    List<String>? openRouterApiKeys,
     SearchProvider? searchProvider,
     String? braveApiKey,
     String? bingApiKey,
@@ -82,6 +85,7 @@ class AppSettings {
       modelAliases: modelAliases ?? this.modelAliases,
       apiProvider: apiProvider ?? this.apiProvider,
       openRouterApiKey: openRouterApiKey ?? this.openRouterApiKey,
+      openRouterApiKeys: openRouterApiKeys ?? this.openRouterApiKeys,
       searchProvider: searchProvider ?? this.searchProvider,
       braveApiKey: braveApiKey ?? this.braveApiKey,
       bingApiKey: bingApiKey ?? this.bingApiKey,

@@ -75,6 +75,7 @@ class SettingsProvider with ChangeNotifier {
     Map<String, String>? modelAliases,
     ApiProvider? apiProvider,
     String? openRouterApiKey,
+    List<String>? openRouterApiKeys,
     SearchProvider? searchProvider,
     String? braveApiKey,
     String? bingApiKey,
@@ -93,6 +94,7 @@ class SettingsProvider with ChangeNotifier {
       modelAliases: modelAliases,
       apiProvider: apiProvider,
       openRouterApiKey: openRouterApiKey,
+      openRouterApiKeys: openRouterApiKeys,
       searchProvider: searchProvider,
       braveApiKey: braveApiKey,
       bingApiKey: bingApiKey,
@@ -144,6 +146,22 @@ class SettingsProvider with ChangeNotifier {
           newAliases[modelId] = alias.trim();
       }
       await updateSettings(modelAliases: newAliases);
+  }
+
+  Future<void> addOpenRouterApiKeyToHistory(String key) async {
+    if (key.trim().isEmpty) return;
+    final cleanKey = key.trim();
+    if (_settings.openRouterApiKeys.contains(cleanKey)) return;
+    
+    final newHistory = List<String>.from(_settings.openRouterApiKeys);
+    newHistory.add(cleanKey);
+    await updateSettings(openRouterApiKeys: newHistory);
+  }
+
+  Future<void> removeOpenRouterApiKeyFromHistory(String key) async {
+    final newHistory = List<String>.from(_settings.openRouterApiKeys);
+    newHistory.remove(key);
+    await updateSettings(openRouterApiKeys: newHistory);
   }
 
   String getModelDisplayName(String modelId) {

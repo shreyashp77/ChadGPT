@@ -14,6 +14,7 @@ class SharedPrefsService {
   static const String keyModelAliases = 'model_aliases';
   static const String keyApiProvider = 'api_provider';
   static const String keyOpenRouterApiKey = 'openrouter_api_key';
+  static const String keyOpenRouterApiKeyHistory = 'openrouter_api_key_history';
   
   // Search Provider Keys
   static const String keySearchProvider = 'search_provider';
@@ -81,6 +82,7 @@ class SharedPrefsService {
       modelAliases: aliases,
       apiProvider: apiProvider,
       openRouterApiKey: await _getSecureKey(prefs, keyOpenRouterApiKey),
+      openRouterApiKeys: await _getSecureList(keyOpenRouterApiKeyHistory),
       searchProvider: searchProvider,
       braveApiKey: await _getSecureKey(prefs, keyBraveApiKey),
       bingApiKey: await _getSecureKey(prefs, keyBingApiKey),
@@ -110,6 +112,20 @@ class SharedPrefsService {
       }
     }
     return null;
+  }
+
+  Future<List<String>> _getSecureList(String key) async {
+    final jsonStr = await _secureStorage.readProtected(key);
+    if (jsonStr != null && jsonStr.isNotEmpty) {
+      try {
+        return List<String>.from(json.decode(jsonStr));
+      } catch (_) {}
+    }
+    return [];
+  }
+
+  Future<void> _saveSecureList(String key, List<String> list) async {
+    await _secureStorage.writeProtected(key, json.encode(list));
   }
 
   Future<void> saveSettings(AppSettings settings) async {
@@ -145,6 +161,7 @@ class SharedPrefsService {
     
     // Save OpenRouter API key (SECURE)
     await _secureStorage.writeProtected(keyOpenRouterApiKey, settings.openRouterApiKey);
+    await _saveSecureList(keyOpenRouterApiKeyHistory, settings.openRouterApiKeys);
 
     // Save Search Settings
     await prefs.setString(keySearchProvider, settings.searchProvider.toString().split('.').last);

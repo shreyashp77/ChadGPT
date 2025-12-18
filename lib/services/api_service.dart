@@ -35,7 +35,7 @@ class ApiService {
     }
   }
 
-  // OpenRouter - Get Free Models
+  // OpenRouter - Get All Models
   Future<List<Map<String, dynamic>>> getOpenRouterModels() async {
     try {
       final response = await http.get(
@@ -49,22 +49,22 @@ class ApiService {
         final data = jsonDecode(response.body);
         final List<dynamic> models = data['data'];
         
-        // Filter for free models (pricing.prompt == "0" and pricing.completion == "0")
-        final freeModels = models.where((m) {
+        return models.map<Map<String, dynamic>>((m) {
           final pricing = m['pricing'];
-          if (pricing == null) return false;
-          final promptPrice = pricing['prompt']?.toString() ?? '1';
-          final completionPrice = pricing['completion']?.toString() ?? '1';
-          return promptPrice == '0' && completionPrice == '0';
-        }).map<Map<String, dynamic>>((m) {
+          final promptPrice = double.tryParse(pricing?['prompt']?.toString() ?? '1') ?? 1.0;
+          final completionPrice = double.tryParse(pricing?['completion']?.toString() ?? '1') ?? 1.0;
+          final isFree = promptPrice == 0 && completionPrice == 0;
+
           return {
             'id': m['id'] as String,
             'name': m['name'] as String? ?? m['id'],
             'context_length': m['context_length'] ?? 4096,
+            'is_free': isFree,
+            'prompt_price': promptPrice,
+            'completion_price': completionPrice,
+            'description': m['description'] ?? '',
           };
         }).toList();
-        
-        return freeModels;
       } else if (response.statusCode == 401) {
         throw Exception('Invalid API key');
       } else {
