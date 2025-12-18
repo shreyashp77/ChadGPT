@@ -40,6 +40,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
   bool _useWebSearch = false; // Local state for search
   bool _useImageCreate = false; // Local state for image creation mode
+  bool _useDeepResearch = false; // Local state for deep research mode
 
   void _scrollToBottom({bool isImmediate = false}) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -91,6 +92,18 @@ class _ChatScreenState extends State<ChatScreen> {
             // Just /create typed (without space) - wait for space or detect on blur
             // For now, just trigger setState for UI updates
             setState(() {});
+          } else if (!_useDeepResearch && text.toLowerCase().startsWith('/research ')) {
+            // Auto-detect /research command and enable research mode
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted && _textController.text.toLowerCase().startsWith('/research ')) {
+                final newText = _textController.text.substring(10);
+                _textController.text = newText;
+                _textController.selection = TextSelection.fromPosition(
+                  TextPosition(offset: newText.length),
+                );
+                setState(() => _useDeepResearch = true);
+              }
+            });
           } else {
             setState(() {});
           }
@@ -373,10 +386,10 @@ class _ChatScreenState extends State<ChatScreen> {
                         mainAxisSize: MainAxisSize.min,
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                           // Top: Feature Chips (Web Search, Attachments, Image Mode)
-                           if (_useWebSearch || _pendingAttachmentPath != null || _useImageCreate)
+                           // Top: Feature Chips (Web Search, Attachments, Image Mode, Research Mode)
+                           if (_useWebSearch || _pendingAttachmentPath != null || _useImageCreate || _useDeepResearch)
                              Padding(
-                               padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+                               padding: const EdgeInsets.fromLTRB(8, 8, 8, 4),
                                child: SingleChildScrollView(
                                  scrollDirection: Axis.horizontal,
                                  child: Row(
@@ -391,6 +404,18 @@ class _ChatScreenState extends State<ChatScreen> {
                                            label: 'Image',
                                            chipColor: Theme.of(context).colorScheme.primary,
                                            onRemove: () => setState(() => _useImageCreate = false),
+                                         ),
+                                       ),
+                                     // Research mode chip
+                                     if (_useDeepResearch)
+                                       Padding(
+                                         padding: const EdgeInsets.only(right: 6),
+                                         child: _buildFeatureChip(
+                                           context,
+                                           icon: Icons.school,
+                                           label: 'Research',
+                                           onRemove: () => setState(() => _useDeepResearch = false),
+                                           chipColor: Theme.of(context).colorScheme.primary,
                                          ),
                                        ),
                                      if (_useWebSearch)
@@ -564,7 +589,7 @@ class _ChatScreenState extends State<ChatScreen> {
       // Get position for the plus button (left side)
       final screenHeight = MediaQuery.of(context).size.height;
       // Add extra space if pills are visible
-      final pillsVisible = _useWebSearch || _pendingAttachmentPath != null;
+      final pillsVisible = _useWebSearch || _pendingAttachmentPath != null || _useDeepResearch || _useImageCreate;
       final bottomOffset = MediaQuery.of(context).padding.bottom + 16 + 56 + 16 + (pillsVisible ? 32 : 0);
       const leftOffset = 16.0 + 8.0;
 
@@ -635,6 +660,23 @@ class _ChatScreenState extends State<ChatScreen> {
                                          if (settingsProvider.settings.searchProvider != SearchProvider.none)
                                             const SizedBox(height: 10),
 
+                                        // Deep Research
+                                        _buildFloatingOption(
+                                            context,
+                                            icon: Icons.school,
+                                            label: _useDeepResearch ? 'Research On' : 'Deep Research',
+                                            bgColor: _useDeepResearch ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.surfaceContainerHighest,
+                                            iconColor: _useDeepResearch ? Colors.white : Theme.of(context).colorScheme.onSurface,
+                                            onTap: () {
+                                                Navigator.pop(context);
+                                                HapticFeedback.lightImpact();
+                                                setState(() => _useDeepResearch = !_useDeepResearch);
+                                            },
+                                            alignLeft: true,
+                                        ).animate().slideY(begin: 0.5, end: 0, duration: 200.ms, delay: 100.ms).fadeIn(),
+
+                                        const SizedBox(height: 10),
+
                                        // Image from Gallery
                                        _buildFloatingOption(
                                            context,
@@ -659,7 +701,7 @@ class _ChatScreenState extends State<ChatScreen> {
                                                }
                                            },
                                            alignLeft: true,
-                                       ).animate().slideY(begin: 0.5, end: 0, duration: 200.ms, delay: 100.ms).fadeIn(),
+                                       ).animate().slideY(begin: 0.5, end: 0, duration: 200.ms, delay: 150.ms).fadeIn(),
                                        
                                        const SizedBox(height: 10),
 
@@ -686,7 +728,7 @@ class _ChatScreenState extends State<ChatScreen> {
                                                }
                                            },
                                            alignLeft: true,
-                                       ).animate().slideY(begin: 0.5, end: 0, duration: 200.ms, delay: 150.ms).fadeIn(),
+                                       ).animate().slideY(begin: 0.5, end: 0, duration: 200.ms, delay: 200.ms).fadeIn(),
                                        
                                        const SizedBox(height: 10),
 
@@ -709,7 +751,7 @@ class _ChatScreenState extends State<ChatScreen> {
                                                }
                                            },
                                            alignLeft: true,
-                                       ).animate().slideY(begin: 0.5, end: 0, duration: 200.ms, delay: 200.ms).fadeIn(),
+                                       ).animate().slideY(begin: 0.5, end: 0, duration: 200.ms, delay: 250.ms).fadeIn(),
                                        
                                        const SizedBox(height: 10),
 
@@ -727,7 +769,8 @@ class _ChatScreenState extends State<ChatScreen> {
                                                setState(() => _useImageCreate = !_useImageCreate);
                                            },
                                            alignLeft: true,
-                                       ).animate().slideY(begin: 0.5, end: 0, duration: 200.ms, delay: 250.ms).fadeIn(),
+                                       ).animate().slideY(begin: 0.5, end: 0, duration: 200.ms, delay: 300.ms).fadeIn(),
+
                                    ],
                                ),
                            ),
@@ -1500,21 +1543,28 @@ class _ChatScreenState extends State<ChatScreen> {
       text = '/create $text';
     }
     
+    final useDeepResearch = _useDeepResearch;
+    
     _textController.clear();
     setState(() {
         _pendingAttachmentPath = null;
         _pendingAttachmentType = null; 
         _useWebSearch = false;
         _useImageCreate = false;
+        _useDeepResearch = false;
     });
 
     try {
-      await chatProvider.sendMessage(
-        text, 
-        attachmentPath: path, 
-        attachmentType: type,
-        useWebSearch: useSearch
-      );
+      if (useDeepResearch) {
+        await chatProvider.startDeepResearch(text);
+      } else {
+        await chatProvider.sendMessage(
+          text, 
+          attachmentPath: path, 
+          attachmentType: type,
+          useWebSearch: useSearch
+        );
+      }
       _scrollToBottom();
     } catch (e) {
        if (mounted) {
