@@ -920,8 +920,8 @@ class _ChatScreenState extends State<ChatScreen> {
                                 ),
                               ),
 
-                              // Animated Filter Tabs (Only for Cloud Models)
-                              if (!isLocalProvider)
+                              // Animated Filter Tabs (Only for OpenRouter)
+                              if (!isLocalProvider && settings.settings.apiProvider == ApiProvider.openRouter)
                               Padding(
                                 padding: const EdgeInsets.fromLTRB(24, 16, 24, 8),
                                 child: Container(

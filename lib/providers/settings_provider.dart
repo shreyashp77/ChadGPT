@@ -138,8 +138,10 @@ class SettingsProvider with ChangeNotifier {
     // If switching provider, clear current model selection and refetch
     if (apiProvider != null) {
       _settings = _settings.copyWith(selectedModelId: null);
+      _availableModels = []; // Clear current models to prevent UI flickering with old data
+      notifyListeners();
       await _prefsService.saveSettings(_settings);
-      fetchModels();
+      fetchModels(forceRefresh: true);
     }
   }
 
