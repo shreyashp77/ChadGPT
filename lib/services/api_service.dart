@@ -315,6 +315,7 @@ class ApiService {
     required List<Message> messages,
     List<String>? searchResults,
     String? systemPrompt,
+    String? documentContext,
   }) async* {
     if (settings.apiProvider == ApiProvider.openRouter) {
       yield* _openRouterChatStream(
@@ -322,12 +323,14 @@ class ApiService {
         messages: messages,
         searchResults: searchResults,
         systemPrompt: systemPrompt,
+        documentContext: documentContext,
       );
     } else if (settings.apiProvider == ApiProvider.localModel) {
       yield* _localModelChatStream(
         messages: messages,
         searchResults: searchResults,
         systemPrompt: systemPrompt,
+        documentContext: documentContext,
       );
     } else {
       yield* _lmStudioChatStream(
@@ -335,6 +338,7 @@ class ApiService {
         messages: messages,
         searchResults: searchResults,
         systemPrompt: systemPrompt,
+        documentContext: documentContext,
       );
     }
   }
@@ -344,6 +348,7 @@ class ApiService {
     required List<Message> messages,
     List<String>? searchResults,
     String? systemPrompt,
+    String? documentContext,
   }) async* {
     final localModelService = LocalModelService();
     
@@ -356,6 +361,12 @@ class ApiService {
     try {
       // Build system prompt
       String systemContent = systemPrompt ?? "You are a helpful AI assistant.";
+      
+      // Inject document context if available
+      if (documentContext != null && documentContext.isNotEmpty) {
+        systemContent += "\n\n--- DOCUMENT CONTEXT ---\nUse the following document content to answer the user's questions:\n$documentContext\n--- END DOCUMENT ---";
+      }
+      
       if (searchResults != null && searchResults.isNotEmpty) {
         systemContent += "\n\nUse the following search results to answer the user's question:\n${searchResults.join('\n\n')}";
       }
@@ -405,6 +416,7 @@ class ApiService {
     required List<Message> messages,
     List<String>? searchResults,
     String? systemPrompt,
+    String? documentContext,
   }) async* {
     
     // Construct messages payload.
@@ -412,6 +424,12 @@ class ApiService {
     
     // System message
     String systemContent = systemPrompt ?? "You are a helpful AI assistant.";
+    
+    // Inject document context if available
+    if (documentContext != null && documentContext.isNotEmpty) {
+      systemContent += "\n\n--- DOCUMENT CONTEXT ---\nUse the following document content to answer the user's questions:\n$documentContext\n--- END DOCUMENT ---";
+    }
+    
     if (searchResults != null && searchResults.isNotEmpty) {
       systemContent += "\n\nUse the following search results to answer the user's question:\n${searchResults.join('\n\n')}";
     }
@@ -523,12 +541,19 @@ class ApiService {
     required List<Message> messages,
     List<String>? searchResults,
     String? systemPrompt,
+    String? documentContext,
   }) async* {
     
     final List<Map<String, dynamic>> apiMessages = [];
     
     // System message
     String systemContent = systemPrompt ?? "You are a helpful AI assistant.";
+    
+    // Inject document context if available
+    if (documentContext != null && documentContext.isNotEmpty) {
+      systemContent += "\n\n--- DOCUMENT CONTEXT ---\nUse the following document content to answer the user's questions:\n$documentContext\n--- END DOCUMENT ---";
+    }
+    
     if (searchResults != null && searchResults.isNotEmpty) {
       systemContent += "\n\nUse the following search results to answer the user's question:\n${searchResults.join('\n\n')}";
     }

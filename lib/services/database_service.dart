@@ -25,7 +25,7 @@ class DatabaseService {
     String path = join(await getDatabasesPath(), AppConstants.dbName);
     return await openDatabase(
       path,
-      version: 11, // Added model_id, is_free, api_key_label to messages
+      version: 12, // Added document_context, document_name for RAG feature
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -41,7 +41,9 @@ class DatabaseService {
         system_prompt TEXT,
         is_pinned INTEGER DEFAULT 0,
         has_unread_messages INTEGER DEFAULT 0,
-        folder TEXT
+        folder TEXT,
+        document_context TEXT,
+        document_name TEXT
       )
     ''');
     
@@ -199,6 +201,18 @@ class DatabaseService {
        }
        if (!columnNames.contains('api_key_label')) {
            await db.execute('ALTER TABLE ${AppConstants.tableNameMessages} ADD COLUMN api_key_label TEXT');
+       }
+    }
+    if (oldVersion < 12) {
+       // Add document context columns for RAG feature
+       final columns = await db.rawQuery('PRAGMA table_info(${AppConstants.tableNameChats})');
+       final columnNames = columns.map((c) => c['name']).toSet();
+       
+       if (!columnNames.contains('document_context')) {
+           await db.execute('ALTER TABLE ${AppConstants.tableNameChats} ADD COLUMN document_context TEXT');
+       }
+       if (!columnNames.contains('document_name')) {
+           await db.execute('ALTER TABLE ${AppConstants.tableNameChats} ADD COLUMN document_name TEXT');
        }
     }
   }

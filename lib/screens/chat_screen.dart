@@ -18,6 +18,7 @@ import '../widgets/typing_indicator.dart';
 import '../widgets/media_history_sheet.dart';
 import '../services/local_model_service.dart';
 import '../services/database_service.dart';
+import '../services/document_service.dart';
 import '../models/local_model.dart';
 
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
@@ -386,8 +387,8 @@ class _ChatScreenState extends State<ChatScreen> {
                         mainAxisSize: MainAxisSize.min,
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                           // Top: Feature Chips (Web Search, Attachments, Image Mode, Research Mode)
-                           if (_useWebSearch || _pendingAttachmentPath != null || _useImageCreate || _useDeepResearch)
+                           // Top: Feature Chips (Web Search, Attachments, Image Mode, Research Mode, Document)
+                           if (_useWebSearch || _pendingAttachmentPath != null || _useImageCreate || _useDeepResearch || chatProvider.currentChat?.hasDocument == true)
                              Padding(
                                padding: const EdgeInsets.fromLTRB(8, 8, 8, 4),
                                child: SingleChildScrollView(
@@ -441,6 +442,20 @@ class _ChatScreenState extends State<ChatScreen> {
                                            }),
                                          ),
                                        ),
+                                      // Document context chip
+                                      if (chatProvider.currentChat?.hasDocument == true)
+                                        Padding(
+                                          padding: const EdgeInsets.only(right: 6),
+                                          child: _buildFeatureChip(
+                                            context,
+                                            icon: Icons.description,
+                                            label: chatProvider.currentChat!.documentName ?? 'Document',
+                                            chipColor: Colors.orange,
+                                            onRemove: () {
+                                              chatProvider.clearDocument();
+                                            },
+                                          ),
+                                        ),
                                    ],
                                  ),
                                ),
@@ -579,6 +594,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
   void _showAttachmentOptions() async {
       final settingsProvider = context.read<SettingsProvider>();
+      final chatProvider = context.read<ChatProvider>();
       
       // Dismiss keyboard first
       FocusScope.of(context).unfocus();
@@ -589,7 +605,7 @@ class _ChatScreenState extends State<ChatScreen> {
       // Get position for the plus button (left side)
       final screenHeight = MediaQuery.of(context).size.height;
       // Add extra space if pills are visible
-      final pillsVisible = _useWebSearch || _pendingAttachmentPath != null || _useDeepResearch || _useImageCreate;
+      final pillsVisible = _useWebSearch || _pendingAttachmentPath != null || _useDeepResearch || _useImageCreate || chatProvider.currentChat?.hasDocument == true;
       final bottomOffset = MediaQuery.of(context).padding.bottom + 16 + 56 + 16 + (pillsVisible ? 32 : 0);
       const leftOffset = 16.0 + 8.0;
 
@@ -770,6 +786,41 @@ class _ChatScreenState extends State<ChatScreen> {
                                            },
                                            alignLeft: true,
                                        ).animate().slideY(begin: 0.5, end: 0, duration: 200.ms, delay: 300.ms).fadeIn(),
+                                       
+                                       if (settingsProvider.isComfyUiConnected)
+                                         const SizedBox(height: 10),
+
+                                        // Document for RAG context
+                                        _buildFloatingOption(
+                                            context,
+                                            icon: Icons.description,
+                                            label: chatProvider.currentChat?.hasDocument == true 
+                                                ? 'Doc: ${chatProvider.currentChat!.documentName ?? "Loaded"}'
+                                                : 'Load Document',
+                                            bgColor: chatProvider.currentChat?.hasDocument == true 
+                                                ? Colors.orange 
+                                                : Theme.of(context).colorScheme.surfaceContainerHighest,
+                                            iconColor: chatProvider.currentChat?.hasDocument == true 
+                                                ? Colors.white 
+                                                : Theme.of(context).colorScheme.onSurface,
+                                            onTap: () async {
+                                                Navigator.pop(context);
+                                                HapticFeedback.lightImpact();
+                                                final result = await FilePicker.platform.pickFiles(
+                                                  type: FileType.custom,
+                                                  allowedExtensions: DocumentService.supportedExtensions,
+                                                );
+                                                if (result != null && result.files.single.path != null) {
+                                                    final loaded = await chatProvider.loadDocument(result.files.single.path!);
+                                                    if (!loaded && mounted) {
+                                                        ScaffoldMessenger.of(this.context).showSnackBar(
+                                                            const SnackBar(content: Text('Failed to load document')),
+                                                        );
+                                                    }
+                                                }
+                                            },
+                                            alignLeft: true,
+                                        ).animate().slideY(begin: 0.5, end: 0, duration: 200.ms, delay: 350.ms).fadeIn(),
 
                                    ],
                                ),

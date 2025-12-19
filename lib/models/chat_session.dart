@@ -11,12 +11,17 @@ class ChatSession {
   bool isPinned;
   bool hasUnreadMessages;
   String? folder;  // Folder for organization
+  String? documentContext;  // Extracted text from uploaded document
+  String? documentName;     // Filename of uploaded document
 
   /// Returns true if the chat contains any generated media (images)
   bool get hasGeneratedMedia => messages.any((m) => m.generatedImageUrl != null);
   
   /// Returns true if the chat contains any user attachments (files/images)
   bool get hasAttachments => messages.any((m) => m.attachmentPath != null);
+  
+  /// Returns true if the chat has a document loaded for context
+  bool get hasDocument => documentContext != null && documentContext!.isNotEmpty;
 
   ChatSession({
     required this.id,
@@ -29,6 +34,8 @@ class ChatSession {
     this.isPinned = false,
     this.hasUnreadMessages = false,
     this.folder,
+    this.documentContext,
+    this.documentName,
   }) : messages = messages ?? [];
 
   Map<String, dynamic> toMap() {
@@ -41,6 +48,8 @@ class ChatSession {
       'is_pinned': isPinned ? 1 : 0,
       'has_unread_messages': hasUnreadMessages ? 1 : 0,
       'folder': folder,
+      'document_context': documentContext,
+      'document_name': documentName,
     };
   }
 
@@ -56,6 +65,8 @@ class ChatSession {
       isPinned: map['is_pinned'] == 1,
       hasUnreadMessages: map['has_unread_messages'] == 1,
       folder: map['folder'],
+      documentContext: map['document_context'],
+      documentName: map['document_name'],
     );
   }
 }

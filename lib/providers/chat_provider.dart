@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../services/database_service.dart';
 import '../services/comfyui_service.dart';
 import '../services/notification_service.dart';
+import '../services/document_service.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'dart:isolate'; // details: SendPort
@@ -23,6 +24,7 @@ class ChatProvider with ChangeNotifier, WidgetsBindingObserver {
   final SettingsProvider _settingsProvider;
   final TtsService _ttsService = TtsService();
   final NotificationService _notificationService = NotificationService();
+  final DocumentService _documentService = DocumentService();
   
   // App lifecycle state
   bool _isAppInBackground = false;
@@ -500,6 +502,65 @@ class ChatProvider with ChangeNotifier, WidgetsBindingObserver {
 
   Future<List<String>> getFolders() async {
     return await _dbService.getFolders();
+  }
+
+  // Document Context Methods for RAG
+  bool _isLoadingDocument = false;
+  bool get isLoadingDocument => _isLoadingDocument;
+  
+  /// Load a document for context (PDF, TXT, MD)
+  Future<bool> loadDocument(String filePath) async {
+    if (_currentChat == null) startNewChat();
+    
+    if (!_documentService.isSupported(filePath)) {
+      return false;
+    }
+    
+    _isLoadingDocument = true;
+    notifyListeners();
+    
+    try {
+      final text = await _documentService.extractText(filePath);
+      final fileName = _documentService.getFileName(filePath);
+      
+      _currentChat!.documentContext = text;
+      _currentChat!.documentName = fileName;
+      
+      // Persist if not temp mode and chat exists in DB
+      if (!_isTempMode && _currentChat!.messages.isNotEmpty) {
+        await _dbService.updateChat(_currentChat!);
+      }
+      
+      _isLoadingDocument = false;
+      notifyListeners();
+      return true;
+    } catch (e) {
+      print('Error loading document: $e');
+      _isLoadingDocument = false;
+      notifyListeners();
+      return false;
+    }
+  }
+  
+  /// Clear the loaded document from current chat
+  Future<void> clearDocument() async {
+    if (_currentChat == null) return;
+    
+    _currentChat!.documentContext = null;
+    _currentChat!.documentName = null;
+    
+    // Persist if not temp mode and chat exists in DB
+    if (!_isTempMode && _currentChat!.messages.isNotEmpty) {
+      await _dbService.updateChat(_currentChat!);
+    }
+    
+    notifyListeners();
+  }
+  
+  /// Get estimated token count for current document
+  int get documentTokenEstimate {
+    if (_currentChat?.documentContext == null) return 0;
+    return _documentService.estimateTokenCount(_currentChat!.documentContext!);
   }
 
   bool _abortGeneration = false;
@@ -1113,6 +1174,7 @@ class ChatProvider with ChangeNotifier, WidgetsBindingObserver {
         messages: targetChat.messages, 
         searchResults: searchResults,
         systemPrompt: targetChat.systemPrompt,
+        documentContext: targetChat.documentContext,
       );
       
       // Streaming TTS Buffer
