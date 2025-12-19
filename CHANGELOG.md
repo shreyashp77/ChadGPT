@@ -1,3 +1,22 @@
+# v1.3.0 - The "Document Context" Update 📄
+
+Small but impactful improvements to error handling and user experience.
+
+## � New Features
+
+### 📄 Document Context (RAG)
+- **Load Documents**: Upload PDF, TXT, or Markdown files to use as context for your entire conversation.
+- **Persistent Context**: Document stays loaded throughout the chat session until you remove it.
+- **Visual Indicator**: Orange chip shows which document is active, with one-tap removal.
+
+## �🎯 Improvements
+
+### 💬 User-Friendly Error Messages
+- **Context Length Errors**: When your conversation or document exceeds the model's context limit, you now get a clear, actionable message with suggestions instead of a cryptic API error.
+- **Smarter Error Parsing**: OpenRouter API errors are now parsed and displayed in human-readable format.
+
+---
+
 # v1.2.5 - The "Deep Insights & Polished" Update 🎨
 
 Take your chats further with our new Deep Research mode and a refreshed, cleaner user interface.
