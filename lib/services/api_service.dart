@@ -626,7 +626,33 @@ class ApiService {
       if (streamedResponse.statusCode != 200) {
         final body = await streamedResponse.stream.bytesToString();
         print("DEBUG: OpenRouter error body: $body");
-        yield StreamChunk(content: "Error: API returned status ${streamedResponse.statusCode}");
+        
+        // Try to parse error for user-friendly message
+        String errorMessage = "Error: API returned status ${streamedResponse.statusCode}";
+        try {
+          final errorJson = jsonDecode(body);
+          final rawError = errorJson['error']?['metadata']?['raw'];
+          final mainError = errorJson['error']?['message'];
+          
+          // Check for context length exceeded
+          if (rawError != null) {
+            final rawParsed = jsonDecode(rawError);
+            final rawMessage = rawParsed['message'] ?? '';
+            if (rawMessage.toString().contains('max_num_tokens') || 
+                rawMessage.toString().contains('context length') ||
+                rawMessage.toString().contains('prompt length')) {
+              errorMessage = "⚠️ Context too long!\n\nYour conversation or document exceeds the model's limit. Try:\n• Starting a new chat\n• Removing the loaded document\n• Using a model with larger context";
+            } else {
+              errorMessage = "Error: $rawMessage";
+            }
+          } else if (mainError != null) {
+            errorMessage = "Error: $mainError";
+          }
+        } catch (_) {
+          // Keep default error message if parsing fails
+        }
+        
+        yield StreamChunk(content: errorMessage);
         return;
       }
 
